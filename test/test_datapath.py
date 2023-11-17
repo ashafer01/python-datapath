@@ -1,6 +1,8 @@
 import unittest
 
 import datapath
+import datapath._base
+import datapath.folding
 
 valid_paths = (
     'test',
@@ -77,7 +79,7 @@ class TestDatapath(unittest.TestCase):
         for i, (obj, key) in enumerate(tests):
             with self.subTest(msg=f'index {i}'):
                 try:
-                    datapath._validate_key_collection_type(obj, key)
+                    datapath._base._validate_key_collection_type(obj, key)
                 except datapath.ValidationError:
                     self.fail(f'valid type combination was found invalid: obj {type(obj)} key {type(key)}')
 
@@ -89,8 +91,8 @@ class TestDatapath(unittest.TestCase):
             (tuple(), 0),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath.TypeValidationError, msg=f'index {i}'):
-                datapath._validate_key_collection_type(obj, key)
+            with self.assertRaises(datapath._base.TypeValidationError, msg=f'index {i}'):
+                datapath._base._validate_key_collection_type(obj, key)
 
     def test_validate_key_collection_bad_key(self):
         tests = (
@@ -99,8 +101,8 @@ class TestDatapath(unittest.TestCase):
             ([], 1.6),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath.TypeValidationError, msg=f'index {i}'):
-                datapath._validate_key_collection_type(obj, key)
+            with self.assertRaises(datapath._base.TypeValidationError, msg=f'index {i}'):
+                datapath._base._validate_key_collection_type(obj, key)
 
     def test_validate_key_collection_type_mismatch(self):
         tests = (
@@ -108,8 +110,8 @@ class TestDatapath(unittest.TestCase):
             ([], ''),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath.TypeMismatchValidationError, msg=f'index {i}'):
-                datapath._validate_key_collection_type(obj, key)
+            with self.assertRaises(datapath._base.TypeMismatchValidationError, msg=f'index {i}'):
+                datapath._base._validate_key_collection_type(obj, key)
 
     def test_get(self):
         tests = (
@@ -132,6 +134,10 @@ class TestDatapath(unittest.TestCase):
 
     def test_get_default_not_set(self):
         self.assertEqual(datapath.get({}, 'a', 42), 42)
+
+    def test_get_root_path(self):
+        test = set((4, 5, 6))
+        self.assertIs(datapath.get(test, ''), test)
 
     def test_get_lookup_error(self):
         with self.assertRaises(LookupError):
@@ -193,3 +199,20 @@ class TestDatapath(unittest.TestCase):
             self.assertEqual(len(test), 1)
         except LookupError:
             self.fail('discard did not suppress LookupError')
+
+    def test_unfold_path_dict(self):
+        tests = (
+            ({'': []},     {'': []}),
+            ({'': {}},     {'': {}}),
+            ({'a': 5},     {'': {'a': 5}}),
+            ({'a.b': 17},  {'': {'a': {'b': 17}}}),
+            ({'[0]': 5},   {'': [5]}),
+            ({'a[0]': 17}, {'': {'a': [17]}}),
+        )
+        for i, (path_dict, expected_root_path_dict) in enumerate(tests):
+            with self.subTest(msg=f'index {i}'):
+                actual_root_path_dict = datapath.folding.unfold_path_dict(path_dict)
+                root = actual_root_path_dict.pop('')
+                self.assertFalse(actual_root_path_dict, 'extra keys in root path dict')
+                for path, value in path_dict.items():
+                    self.assertEqual(datapath.get(root, path), value)
