@@ -23,10 +23,10 @@ class TestFolding(unittest.TestCase):
             [(2, 'x'), (2, 'y')],
         )
         for i, test in enumerate(tests):
-            with self.assertRaises(datapath.ValidationError):
+            with self.subTest(msg='index {i}'), self.assertRaises(datapath.ValidationError):
                 datapath.folding._complete_partial_list(test)
 
-    def test_unfold_path_dict_single(self):
+    def test_unfold_path_dict_valid(self):
         tests = (
             ({'': []},     {'': []}),
             ({'': {}},     {'': {}}),
@@ -34,6 +34,35 @@ class TestFolding(unittest.TestCase):
             ({'a.b': 17},  {'': {'a': {'b': 17}}}),
             ({'[0]': 5},   {'': [5]}),
             ({'a[0]': 17}, {'': {'a': [17]}}),
+            ({
+                'a.a': 1,
+                'a.b': 2,
+                'a.c': 3,
+                'a.d[0]': 4,
+                'a.d[1]': 5,
+                'a.d[2]': 6,
+                'b': 7,
+                'c': 8,
+            }, {'': {
+                'a': {
+                    'a': 1,
+                    'b': 2,
+                    'c': 3,
+                    'd': [4, 5, 6],
+                },
+                'b': 7,
+                'c': 8,
+            }}),
+            ({
+                '[0].a': 1,
+                '[0].b': 2,
+                '[1].a': 3,
+                '[2].a.b.c': 4,
+            }, {'': [
+                {'a': 1, 'b': 2},
+                {'a': 3},
+                {'a': {'b': {'c': 4}}},
+            ]}),
         )
         for i, (path_dict, expected_root_path_dict) in enumerate(tests):
             with self.subTest(msg=f'index {i}'):
@@ -43,11 +72,25 @@ class TestFolding(unittest.TestCase):
                 for path, value in path_dict.items():
                     self.assertEqual(datapath.get(root, path), value)
 
-    def test_unfold_path_dict_multiple(self):
-        raise Exception('TODO: test unfold_path_dict with collections updated from multiple leaf paths')
-
     def test_unfold_path_dict_invalid(self):
-        raise Exception('TODO: test unfold_path_dict with paths that lead to inconsistent types')
+        tests = (
+            {
+                '[0]': 1,
+                'a': 2,
+            }, {
+                'a[11]': 1,
+                'a[13]': 2,
+            }, {
+                'a[0]': 1,
+                'a[2]': 2,
+            },
+            {'': 17},
+            {},
+        )
+        for i, test in enumerate(tests):
+            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath.ValidationError):
+                datapath.folding.unfold_path_dict(test)
+
 
     def test_fold_path_dict(self):
         raise Exception('TODO: test fold_path_dict')

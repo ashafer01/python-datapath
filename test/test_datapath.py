@@ -38,7 +38,7 @@ class TestDatapath(unittest.TestCase):
             '[,%$^%^!@#$%[1]',
         )
         for invalid_path in invalid_paths:
-            with self.assertRaises(datapath.ValidationError, msg=f'invalid path `{invalid_path}`'):
+            with self.subTest(msg=f'invalid path `{invalid_path}`'), self.assertRaises(datapath.ValidationError):
                 datapath.validate_path(invalid_path)
 
     def test_split_path(self):
@@ -96,7 +96,7 @@ class TestDatapath(unittest.TestCase):
             (tuple(), 0),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath._base.TypeValidationError, msg=f'index {i}'):
+            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeValidationError):
                 datapath._base._validate_key_collection_type(obj, key)
 
     def test_validate_key_collection_bad_key(self):
@@ -106,7 +106,7 @@ class TestDatapath(unittest.TestCase):
             ([], 1.6),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath._base.TypeValidationError, msg=f'index {i}'):
+            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeValidationError):
                 datapath._base._validate_key_collection_type(obj, key)
 
     def test_validate_key_collection_type_mismatch(self):
@@ -115,7 +115,7 @@ class TestDatapath(unittest.TestCase):
             ([], ''),
         )
         for i, (obj, key) in enumerate(tests):
-            with self.assertRaises(datapath._base.TypeMismatchValidationError, msg=f'index {i}'):
+            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeMismatchValidationError):
                 datapath._base._validate_key_collection_type(obj, key)
 
     def test_get(self):
@@ -185,9 +185,9 @@ class TestDatapath(unittest.TestCase):
         self.assertEqual(len(test), 1)
 
     def test_delete_lookup_error(self):
-        with self.assertRaises(LookupError):
+        with self.subTest(msg='list'), self.assertRaises(LookupError):
             datapath.delete([], '[0]')
-        with self.assertRaises(LookupError):
+        with self.subTest(msg='dict'), self.assertRaises(LookupError):
             datapath.delete({}, 'a')
 
     def test_discard_deletes(self):
