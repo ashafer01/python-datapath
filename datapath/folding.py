@@ -1,4 +1,3 @@
-from contextlib import suppress
 from typing import Any
 
 from ._base import (
@@ -10,6 +9,8 @@ from ._base import (
 from .types import (
     Collection,
     Key,
+    Map,
+    PartialCollection,
     PartialList,
     PathDict,
     RootPathDict,
@@ -26,7 +27,7 @@ class UnfoldProcessor:
         """
         return list_
 
-    def process_dict(self, dict_: dict[str, Any]) -> Any:
+    def process_dict(self, dict_: Map) -> Any:
         """
         called on a completed dict; return value is inserted into the resulting data structure
         instead of the original dict
@@ -40,7 +41,8 @@ _default_processor = UnfoldProcessor()
 def unfold_path_dict(paths: PathDict,
                      processor: UnfoldProcessor = _default_processor,
                      root_path: bool = True,
-                     complete_root: bool = True) -> RootPathDict|Collection:
+                     complete_root: bool = True,
+                     complete_intermediates: bool = True) -> RootPathDict|Collection:
     """
     * inverse of fold_path_dict()
     * accepts a flat dictionary where keys are dotted paths, and values are the leaf values for a
@@ -51,6 +53,8 @@ def unfold_path_dict(paths: PathDict,
     * if complete_root is set to False, the working root collection will not have any processing done
       before returning; this is useful if a root is being assembled from multiple sources.
       `complete_collection(root, processor)` can be called to take this action separately
+    * if complete_intermediates is set to False, the intermediate collections will also be left
+      unprocessed
     * all paths must have consistent types for the same intermediate Collections, example:
 
       {
@@ -86,10 +90,10 @@ def unfold_path_dict(paths: PathDict,
             if isinstance(key, int):
                 default_collection: PartialList = []
             elif isinstance(key, str):
-                default_collection: dict[str, Any] = {}
+                default_collection: Map = {}
             else:
-                raise TypeError('unsupported path part type')
-            collection = path_dict.setdefault(parent, default_collection)
+                raise TypeError('bug: unsupported path part type')
+            collection: PartialCollection = path_dict.setdefault(parent, default_collection)
             value = path_dict.pop(path)
             if isinstance(key, int) and isinstance(collection, list):
                 collection.append((key, value))
@@ -100,28 +104,39 @@ def unfold_path_dict(paths: PathDict,
                                       f'has type {type(collection).__name__} key/index {key!r}')
         if not did_any:
             path_length -= 1
-            for path, value in path_dict.items():
-                if len(split(path)) != path_length:
-                    continue
-                with suppress(ValidationError):
-                    path_dict[path] = complete_collection(value, processor)
+            if complete_intermediates:
+                for path, value in path_dict.items():
+                    if len(split(path)) != path_length:
+                        continue
+                    path_dict[path] = complete_collection(value, processor, require_collection=False)
     if complete_root:
-        path_dict[''] = complete_collection(path_dict[''], processor)
-    else:
-        raise RuntimeError('bug: generated an invalid root collection type')
+        try:
+            path_dict[''] = complete_collection(path_dict[''], processor)
+        except ValidationError:
+            raise TypeError('bug: generated an invalid root collection type')
     if root_path:
         return path_dict
     else:
         return path_dict['']
 
 
-def complete_collection(collection: Collection, processor: UnfoldProcessor = _default_processor) -> Collection:
+def complete_collection(collection: Any,
+                        processor: UnfoldProcessor = _default_processor,
+                        require_collection: bool = True) -> Any:
+    """
+    perform final post-processing steps on a completed collection.
+    * if require_collection is set to False and `collection` is not a Collection, return the
+      original value unmodified
+    * raises a ValidationError for non-collections by default
+    """
     if isinstance(collection, list):
         return processor.process_list(_complete_partial_list(collection))
     elif isinstance(collection, dict):
         return processor.process_dict(collection)
-    else:
+    elif require_collection:
         raise ValidationError('must be list/dict')
+    else:
+        return collection
 
 
 def _complete_partial_list(partial_list: PartialList) -> list:

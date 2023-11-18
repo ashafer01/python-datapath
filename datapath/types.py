@@ -2,10 +2,12 @@ from typing import Any
 
 Key = int|str
 SplitPath = tuple[Key, ...]
-Collection = list|dict[str, Any]
-CollectionKey = tuple[list, int]|tuple[dict[str, Any], str]
+Map = dict[str, Any]
+Collection = list|Map
+CollectionKey = tuple[list, int]|tuple[Map, str]
 
 PartialList = list[tuple[int, Any]]
+PartialCollection = PartialList|Map
 PathDict = dict[str, Any]
 RootPathDict = dict[str, Collection]
 

@@ -42,3 +42,12 @@ class TestFolding(unittest.TestCase):
                 self.assertFalse(actual_root_path_dict, 'extra keys in root path dict')
                 for path, value in path_dict.items():
                     self.assertEqual(datapath.get(root, path), value)
+
+    def test_unfold_path_dict_multiple(self):
+        raise Exception('TODO: test unfold_path_dict with collections updated from multiple leaf paths')
+
+    def test_unfold_path_dict_invalid(self):
+        raise Exception('TODO: test unfold_path_dict with paths that lead to inconsistent types')
+
+    def test_fold_path_dict(self):
+        raise Exception('TODO: test fold_path_dict')
