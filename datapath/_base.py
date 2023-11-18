@@ -5,7 +5,7 @@ datapath -- implement dotted.and.indexed[0].paths for recursive list/dict struct
 * inside "[" and "]" must be an integer list index
 * numeric keys outside of square brackets are handled as strings/dict keys
 """
-from typing import Any, Iterable, cast
+from typing import Any, Generator, Iterable, cast
 
 import regex as re
 
@@ -15,10 +15,11 @@ from .types import (
     Collection,
     CollectionKey,
     NO_DEFAULT,
+    ITERATION_POINT,
 )
 
 _key_pattern = '(?P<part>[^[.]+)'
-_index_pattern = r'(?P<part>\[[0-9]+\])'
+_index_pattern = r'(?P<part>\[[0-9]*\])'
 _key_with_index_pattern = _key_pattern + _index_pattern + '?'
 _part_pattern = _key_with_index_pattern + '|' + _index_pattern
 _path_re = re.compile('^(?:' + _part_pattern + r')(?:\.' + _part_pattern + ')*$')
@@ -41,12 +42,14 @@ class TypeValidationError(ValidationError):
 
 class TypeMismatchValidationError(ValidationError):
     """two codependent types did not match"""
-    def __init__(self, message: str):
-        ValidationError.__init__(self, f'key and collection type mismatch; {message}')
 
 
-def PathLookupError(DatapathError):
-    pass
+class InvalidIterationError(ValidationError):
+    """disallowed or unsupported use of iteration (empty square brackets in a path)"""
+
+
+class PathLookupError(DatapathError, LookupError):
+    """raised when an intermediate collection in a path is not found"""
 
 
 def is_path(path: str) -> bool:
@@ -62,7 +65,7 @@ def validate_path(path: str) -> None:
         raise ValidationError('invalid path string')
 
 
-def split(path: str) -> SplitPath:
+def split(path: str, iterable: bool = False) -> SplitPath:
     """inverse of join()
     split the path string to it's component keys/indexes in order
     """
@@ -74,7 +77,14 @@ def split(path: str) -> SplitPath:
         raise ValidationError('invalid path string')
     for part in match.captures('part'):
         if part[0] == '[' and part[-1] == ']':
-            split_path.append(int(part[1:-1]))
+            index = part[1:-1]
+            if index:
+                split_path.append(int(index))
+            else:
+                if iterable:
+                    split_path.append(ITERATION_POINT)
+                else:
+                    raise InvalidIterationError('list index required; iteration not enabled here')
         else:
             split_path.append(part)
     return tuple(split_path)
@@ -101,6 +111,11 @@ def join(split_path: Iterable[Key]) -> str:
                 path = f'{path}[{part}]'
             else:
                 path = f'[{part}]'
+        elif part is ITERATION_POINT:
+            if path:
+                path = f'{path}[]'
+            else:
+                path = '[]'
         else:
             raise ValidationError(f'index {i} is invalid, must be str/int, '
                                   f'got {type(part).__name__}')
@@ -108,9 +123,12 @@ def join(split_path: Iterable[Key]) -> str:
 
 
 def _validate_key_collection_type(obj: Collection, key: Key) -> None:
-    """validate a collection object and key are valid and corresponding types
+    """
+    validate a collection object and key are valid and corresponding types
     raise a ValidationError if they are not
     """
+    if key is ITERATION_POINT:
+        raise TypeError('bug: iteration not supported here')
     if not isinstance(obj, _collection_types):
         raise TypeValidationError('object must be list/dict')
     if not isinstance(key, _key_types):
@@ -132,12 +150,16 @@ def _contextual_validate_key_collection_type(at_path: list[Key],
     try:
         _validate_key_collection_type(obj, key)
     except ValidationError as e:
-        raise ValidationError(f'{join(at_path)}: {e}') from None
+        raise type(e)(f'{join(at_path)}: {e}') from None
 
 
 def leaf(obj: Collection, path: str) -> CollectionKey:
     """find the collection object and key/index at the right side of the path"""
-    split_path = split(path)
+    return _leaf(obj, split(path))
+
+
+def _leaf(obj: Collection, split_path: SplitPath) -> CollectionKey:
+    """leaf() on an already-split path"""
     at_path: list[Key] = []
     for key in split_path[:-1]:
         _contextual_validate_key_collection_type(at_path, obj, key)
@@ -157,15 +179,81 @@ def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
     * if default is passed, return it if the leaf value was not found
     * if default is not passed and the leaf value is not found, propagate the LookupError
     """
-    if not path:
+    return _get(obj, split(path), default)
+
+
+def _get(obj: Collection, split_path: str, default: Any) -> Any:
+    """get() on an already-split path"""
+    if not split_path:
         return obj
-    leaf_obj, leaf_key = leaf(obj, path)
+    leaf_obj, leaf_key = _leaf(obj, split_path)
     try:
         return leaf_obj[leaf_key]
     except LookupError:
         if default is NO_DEFAULT:
             raise
         return default
+
+
+def iterate(obj: Collection,
+            path: str,
+            default: Any = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
+    """
+    yield entries from a collection using an iterable path -- that is, one containing one or more
+    sets of empty square brackets ("[]")
+
+    * the path part just before an iteration point must refer to a list
+    * each yielded value is a tuple (path, value); paths will be resolved with specific indexes
+      placed into all empty square brackets
+    * default passes through to leaf get() calls
+    * raises PathLookupError if a list before [] is not found, or an intermediate element leading to
+      a list is not found
+
+    Examples:
+    * "test1.test2[3]"  # no empty square brackets, yields one result, equivalent to get()
+    * "test1[]"         # "test1" in a root dictionary must be a list, each entry will be yielded
+    * "test1[].test2"   # "test1" in a root dictionary must be a list, key "test2" from each dict
+                          entry will be yielded
+    * "test1[].test2[]" # recursion works
+    """
+    split_path = split(path, iterable=True)
+    yield from _iterate(obj, split_path, (), default)
+
+
+def _iterate(obj: Collection, split_path: SplitPath, base_path: SplitPath, default: Any) -> Generator[tuple[str, Any], None, None]:
+    """recursive core of iterate()"""
+    if not isinstance(obj, _collection_types):
+        raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')
+
+    try:
+        iter_index = split_path.index(ITERATION_POINT)
+    except ValueError:
+        # if there is no iteration point in the path, then this is just get()
+        yield join(base_path + split_path), _get(obj, split_path, default)
+        return
+
+    # find the list referred to by the portion of the path before the first iteration point
+    before_split_path = split_path[:iter_index]
+    try:
+        collection = _get(obj, before_split_path)
+    except PathLookupError:
+        raise
+    except LookupError:
+        raise PathLookupError(f'{join(before_split_path[:-1])}: could not find '
+                              f'list at key/index {key!r} to iterate') from None
+    if not isinstance(collection, list):
+        raise InvalidIterationError('iteration only supported on lists')
+
+    # iterate the list
+    after_split_path = split_path[iter_index+1:]
+    for i, element in enumerate(collection):
+        index_split_path = before_split_path + (i,)
+        if after_path:
+            # if there is a path after the iteration point, element must be a Collection
+            yield from _iterate(element, after_split_path, index_split_path)
+        else:
+            # if there is no path after, then this element is what we're after
+            yield join(index_split_path), element
 
 
 def put(obj: Collection, path: str, value: Any) -> None:

@@ -9,7 +9,14 @@ from ._base import (
     join,
     leaf,
     get,
+    iterate,
     put,
     delete,
     discard,
+)
+from .collection import collection
+from .folding import (
+    unfold_path_dict,
+    fold_path_dict,
+    UnfoldProcessor,
 )

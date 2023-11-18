@@ -205,3 +205,6 @@ class TestDatapath(unittest.TestCase):
             self.assertEqual(len(test), 1)
         except LookupError:
             self.fail('discard did not suppress LookupError')
+
+    def test_iterate(self):
+        raise Exception('TODO: test iterate')
