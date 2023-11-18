@@ -15,6 +15,9 @@ valid_paths = (
     '],%$^%^!@#$%[1]',
     '1234567',
     '1234567[1]',
+    '[0]',
+    '[5]',
+    '',
 )
 
 class TestDatapath(unittest.TestCase):
@@ -51,6 +54,8 @@ class TestDatapath(unittest.TestCase):
             ('],%$^%^!@#$%[1]', ('],%$^%^!@#$%', 1)),
             ('1234567', ('1234567',)),
             ('1234567[1]', ('1234567', 1)),
+            ('[0]', (0,)),
+            ('[5]', (5,)),
         )
         for path, expected in tests:
             with self.subTest(msg=path):
@@ -116,6 +121,7 @@ class TestDatapath(unittest.TestCase):
     def test_get(self):
         tests = (
             ([0], '[0]', 0),
+            ([5], '[0]', 5),
             ({'a': 0}, 'a', 0),
             ({'a': [0]}, 'a[0]', 0),
             ({'a': {'b': [0, 1, 2], 'c': 5}}, 'a.b[1]', 1),
@@ -199,20 +205,3 @@ class TestDatapath(unittest.TestCase):
             self.assertEqual(len(test), 1)
         except LookupError:
             self.fail('discard did not suppress LookupError')
-
-    def test_unfold_path_dict(self):
-        tests = (
-            ({'': []},     {'': []}),
-            ({'': {}},     {'': {}}),
-            ({'a': 5},     {'': {'a': 5}}),
-            ({'a.b': 17},  {'': {'a': {'b': 17}}}),
-            ({'[0]': 5},   {'': [5]}),
-            ({'a[0]': 17}, {'': {'a': [17]}}),
-        )
-        for i, (path_dict, expected_root_path_dict) in enumerate(tests):
-            with self.subTest(msg=f'index {i}'):
-                actual_root_path_dict = datapath.folding.unfold_path_dict(path_dict)
-                root = actual_root_path_dict.pop('')
-                self.assertFalse(actual_root_path_dict, 'extra keys in root path dict')
-                for path, value in path_dict.items():
-                    self.assertEqual(datapath.get(root, path), value)

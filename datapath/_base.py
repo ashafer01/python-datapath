@@ -45,8 +45,14 @@ class TypeMismatchValidationError(ValidationError):
         ValidationError.__init__(self, f'key and collection type mismatch; {message}')
 
 
+def PathLookupError(DatapathError):
+    pass
+
+
 def is_path(path: str) -> bool:
     """validate the path string and return a bool, True if it's valid"""
+    if path == '':
+        return True
     return bool(_path_re.match(path))
 
 
@@ -121,7 +127,6 @@ def _contextual_validate_key_collection_type(at_path: list[Key],
     """
     validate_key_collection_type(), except the path where the error occurred is prepended
     to the exception message
-    mutates at_path to track the current path
     """
     at_path.append(key)
     try:
@@ -136,7 +141,10 @@ def leaf(obj: Collection, path: str) -> CollectionKey:
     at_path: list[Key] = []
     for key in split_path[:-1]:
         _contextual_validate_key_collection_type(at_path, obj, key)
-        obj = obj[key]
+        try:
+            obj = obj[key]
+        except LookupError:
+            raise PathLookupError(f'{join(at_path[:-1])}: could not find key/index {key!r}') from None
     leaf_key = split_path[-1]
     _contextual_validate_key_collection_type(at_path, obj, leaf_key)
     return cast(CollectionKey, (obj, leaf_key))
@@ -145,11 +153,9 @@ def leaf(obj: Collection, path: str) -> CollectionKey:
 def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
     """obtain the value at the path
 
-    * if any non-leaf path parts are not found, a LookupError will always be
-      propagated to the caller
+    * if any non-leaf path parts are not found, a PathLookupError will always be raised
     * if default is passed, return it if the leaf value was not found
-    * if default is not passed and the leaf value is not found, propagate
-      the LookupError
+    * if default is not passed and the leaf value is not found, propagate the LookupError
     """
     if not path:
         return obj

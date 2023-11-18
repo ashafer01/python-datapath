@@ -1,3 +1,4 @@
+from contextlib import suppress
 from typing import Any
 
 from ._base import (
@@ -32,20 +33,14 @@ class UnfoldProcessor:
         """
         return dict_
 
-    def process_leaf(self, value: Any) -> Any:
-        """
-        called on a leaf value; return value is inserted into the resulting data structure instead
-        of the original leaf value
-        """
-        return value
-
 
 _default_processor = UnfoldProcessor()
 
 
 def unfold_path_dict(paths: PathDict,
                      processor: UnfoldProcessor = _default_processor,
-                     root_path: bool = True) -> RootPathDict|Collection:
+                     root_path: bool = True,
+                     complete_root: bool = True) -> RootPathDict|Collection:
     """
     * inverse of fold_path_dict()
     * accepts a flat dictionary where keys are dotted paths, and values are the leaf values for a
@@ -53,6 +48,9 @@ def unfold_path_dict(paths: PathDict,
     * returns a dictionary with only one key, "" (the empty string, meaning the root path), which
       has the root recurisve Collection as it's value
     * if root_path is set to False, return the root collection rather than the root path dict
+    * if complete_root is set to False, the working root collection will not have any processing done
+      before returning; this is useful if a root is being assembled from multiple sources.
+      `complete_collection(root, processor)` can be called to take this action separately
     * all paths must have consistent types for the same intermediate Collections, example:
 
       {
@@ -78,7 +76,7 @@ def unfold_path_dict(paths: PathDict,
             raise RuntimeError('hit loop safety limit')
         safety_limit -= 1
         did_any = False
-        for path, value in path_dict.items():
+        for path in tuple(path_dict.keys()):
             split_path = split(path)
             if len(split_path) != path_length:
                 continue
@@ -92,25 +90,38 @@ def unfold_path_dict(paths: PathDict,
             else:
                 raise TypeError('unsupported path part type')
             collection = path_dict.setdefault(parent, default_collection)
-            value = processor.process_leaf(value)
+            value = path_dict.pop(path)
             if isinstance(key, int) and isinstance(collection, list):
                 collection.append((key, value))
             elif isinstance(key, str) and isinstance(collection, dict):
                 collection[key] = value
             else:
-                raise ValidationError(f'inconsistent types: parent {parent!r} has type {type(collection).__name__} key/index {key!r}')
+                raise ValidationError(f'unsupported/inconsistent types: parent {parent!r} '
+                                      f'has type {type(collection).__name__} key/index {key!r}')
         if not did_any:
             path_length -= 1
             for path, value in path_dict.items():
-                if len(split(path)) == path_length:
-                    if isinstance(value, list):
-                        path_dict[path] = processor.process_list(_complete_partial_list(value))
-                    #elif isinstance(value, dict):
-                    #    path_dict[path] = processor.process_dict(value)
+                if len(split(path)) != path_length:
+                    continue
+                with suppress(ValidationError):
+                    path_dict[path] = complete_collection(value, processor)
+    if complete_root:
+        path_dict[''] = complete_collection(path_dict[''], processor)
+    else:
+        raise RuntimeError('bug: generated an invalid root collection type')
     if root_path:
         return path_dict
     else:
         return path_dict['']
+
+
+def complete_collection(collection: Collection, processor: UnfoldProcessor = _default_processor) -> Collection:
+    if isinstance(collection, list):
+        return processor.process_list(_complete_partial_list(collection))
+    elif isinstance(collection, dict):
+        return processor.process_dict(collection)
+    else:
+        raise ValidationError('must be list/dict')
 
 
 def _complete_partial_list(partial_list: PartialList) -> list:
