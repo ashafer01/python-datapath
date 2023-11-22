@@ -253,3 +253,9 @@ class TestDatapath(unittest.TestCase):
     def test_iterate_passthru_get_lookup_error(self):
         with self.assertRaises(LookupError):
             tuple(datapath.iterate({'a': 1}, 'b'))
+
+    def test_iterate_default(self):
+        self.assertEqual(
+            tuple(datapath.iterate({'a': [{}]}, 'a[].b', 'test default')),
+            (('a[0].b', 'test default'),),
+        )

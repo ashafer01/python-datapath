@@ -2,6 +2,7 @@ from typing import Any
 
 from ._base import (
     get,
+    iterate,
     put,
     delete,
     discard,
@@ -29,13 +30,18 @@ class collection:
         self.root = root_obj
         self.wrap = wrap
 
-    def get(self, path: str, default: Any = NO_DEFAULT, wrap: bool = False) -> Any:
+    def _resolve_wrap(self, wrap: bool) -> bool:
+        if wrap is NO_DEFAULT:
+            return self.wrap
+        return wrap
+
+    def get(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Any:
         """identical to get() for the wrapped root object
 
         if the path refers to a Collection object and wrap or self.wrap is True,
         then the result will be wrapped in a new collection instance
         """
-        wrap = (wrap or self.wrap)
+        wrap = self._resolve_wrap(wrap)
         result = get(self.root, path, default)
         if wrap and isinstance(result, _collection_types):
             return collection(result, wrap=wrap)
@@ -47,6 +53,12 @@ class collection:
         if isinstance(key, int) and isinstance(self.root, list):
             return self.root[key]
         raise TypeError('unsupported key type')
+
+    def iterate(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
+        wrap = self._resolve_wrap(wrap)
+        for item_path, item in iterate(self.root, path, default):
+            if wrap and isinstance(item, _collection_types):
+                yield item_path, collection(item, wrap=wrap)
 
     def put(self, path: str, value: Any) -> None:
         """identical to put() for the wrapped root object"""
