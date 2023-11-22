@@ -21,4 +21,6 @@ from .folding import (
 from .types import (
     DatapathError,
     ValidationError,
+    InvalidIterationError,
+    PathLookupError,
 )

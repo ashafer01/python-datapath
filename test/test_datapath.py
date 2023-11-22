@@ -225,7 +225,31 @@ class TestDatapath(unittest.TestCase):
                     ('a[1].b[2]', 6),
                 ),
             ),
+            ('[][][]', [[[1, 2]]], (('[0][0][0]', 1), ('[0][0][1]', 2))),
+            ('[0]', [1], (('[0]', 1),)),
         )
         for i, (iter_path, obj, expected) in enumerate(tests):
             with self.subTest(f'index {i}'):
                 self.assertEqual(tuple(datapath.iterate(obj, iter_path)), expected)
+
+    def test_iterate_not_collection(self):
+        tests = (
+            'string',
+            tuple(),
+            5,
+        )
+        for i, test_obj in enumerate(tests):
+            with self.subTest(f'index {i}'), self.assertRaises(datapath.ValidationError):
+                tuple(datapath.iterate(test_obj, ''))
+
+    def test_iterate_wrong_iterated_path_not_a_list(self):
+        with self.assertRaises(datapath.InvalidIterationError):
+            tuple(datapath.iterate({'a': 1}, '[]'))
+
+    def test_iterate_missing_itermediate_path(self):
+        with self.assertRaises(datapath.PathLookupError):
+            tuple(datapath.iterate({'a': 1}, 'b[]'))
+
+    def test_iterate_passthru_get_lookup_error(self):
+        with self.assertRaises(LookupError):
+            tuple(datapath.iterate({'a': 1}, 'b'))

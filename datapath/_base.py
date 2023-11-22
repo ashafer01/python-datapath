@@ -171,9 +171,9 @@ def _get(obj: Collection, split_path: str, default: Any = NO_DEFAULT) -> Any:
     leaf_obj, leaf_key = _leaf(obj, split_path)
     try:
         return leaf_obj[leaf_key]
-    except LookupError:
+    except LookupError as e:
         if default is NO_DEFAULT:
-            raise
+            raise e from None
         return default
 
 
@@ -197,6 +197,7 @@ def iterate(obj: Collection,
     * "test1[].test2"   # "test1" in a root dictionary must be a list, key "test2" from each dict
                           entry will be yielded
     * "test1[].test2[]" # recursion works
+    * "[][0]"           # works without dicts
     """
     split_path = split(path, iterable=True)
     yield from _iterate(obj, split_path, (), default)
@@ -221,21 +222,24 @@ def _iterate(obj: Collection, split_path: SplitPath, base_path: SplitPath, defau
     except PathLookupError:
         raise
     except LookupError:
-        raise PathLookupError(f'{join(before_split_path[:-1])}: could not find '
-                              f'list at key/index {key!r} to iterate') from None
+        path = join(before_split_path[:-1])
+        if not path:
+            path = '<root>'
+        key = before_split_path[-1]
+        raise PathLookupError(f'{path}: could not find list at key/index {key!r} to iterate') from None
     if not isinstance(collection, list):
         raise InvalidIterationError('iteration only supported on lists')
 
     # iterate the list
     after_split_path = split_path[iter_index+1:]
     for i, element in enumerate(collection):
-        index_split_path = before_split_path + (i,)
+        index_split_path = base_path + before_split_path + (i,)
         if after_split_path:
             # if there is a path after the iteration point, element must be a Collection
             yield from _iterate(element, after_split_path, index_split_path, default)
         else:
             # if there is no path after, then this element is what we're after
-            yield join(base_path + index_split_path), element
+            yield join(index_split_path), element
 
 
 def put(obj: Collection, path: str, value: Any) -> None:
