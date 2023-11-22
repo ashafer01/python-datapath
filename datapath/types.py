@@ -21,3 +21,27 @@ RootPathDict = dict[str, Collection]
 
 NO_DEFAULT = object()
 ITERATION_POINT = _IterationPoint()
+
+
+class DatapathError(Exception):
+    """base datapath error"""
+
+
+class ValidationError(DatapathError):
+    """generic issue validating arguments"""
+
+
+class TypeValidationError(ValidationError):
+    """a type was not valid"""
+
+
+class TypeMismatchValidationError(ValidationError):
+    """two codependent types did not match"""
+
+
+class InvalidIterationError(ValidationError):
+    """disallowed or unsupported use of iteration (empty square brackets in a path)"""
+
+
+class PathLookupError(DatapathError, LookupError):
+    """raised when an intermediate collection in a path is not found"""

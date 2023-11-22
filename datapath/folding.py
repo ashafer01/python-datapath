@@ -1,7 +1,6 @@
 from typing import Any
 
 from ._base import (
-    ValidationError,
     split,
     join,
     _collection_types,
@@ -14,6 +13,7 @@ from .types import (
     PartialList,
     PathDict,
     RootPathDict,
+    ValidationError,
 )
 
 

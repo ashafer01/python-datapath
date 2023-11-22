@@ -16,6 +16,12 @@ from .types import (
     CollectionKey,
     NO_DEFAULT,
     ITERATION_POINT,
+    DatapathError,
+    ValidationError,
+    TypeValidationError,
+    TypeMismatchValidationError,
+    InvalidIterationError,
+    PathLookupError,
 )
 
 _key_pattern = '(?P<part>[^[.]+)'
@@ -26,30 +32,6 @@ _path_re = re.compile('^(?:' + _part_pattern + r')(?:\.' + _part_pattern + ')*$'
 
 _key_types = (int, str)
 _collection_types = (list, dict)
-
-
-class DatapathError(Exception):
-    """base datapath error"""
-
-
-class ValidationError(DatapathError):
-    """generic issue validating arguments"""
-
-
-class TypeValidationError(ValidationError):
-    """a type was not valid"""
-
-
-class TypeMismatchValidationError(ValidationError):
-    """two codependent types did not match"""
-
-
-class InvalidIterationError(ValidationError):
-    """disallowed or unsupported use of iteration (empty square brackets in a path)"""
-
-
-class PathLookupError(DatapathError, LookupError):
-    """raised when an intermediate collection in a path is not found"""
 
 
 def is_path(path: str) -> bool:
@@ -182,7 +164,7 @@ def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
     return _get(obj, split(path), default)
 
 
-def _get(obj: Collection, split_path: str, default: Any) -> Any:
+def _get(obj: Collection, split_path: str, default: Any = NO_DEFAULT) -> Any:
     """get() on an already-split path"""
     if not split_path:
         return obj
@@ -248,12 +230,12 @@ def _iterate(obj: Collection, split_path: SplitPath, base_path: SplitPath, defau
     after_split_path = split_path[iter_index+1:]
     for i, element in enumerate(collection):
         index_split_path = before_split_path + (i,)
-        if after_path:
+        if after_split_path:
             # if there is a path after the iteration point, element must be a Collection
-            yield from _iterate(element, after_split_path, index_split_path)
+            yield from _iterate(element, after_split_path, index_split_path, default)
         else:
             # if there is no path after, then this element is what we're after
-            yield join(index_split_path), element
+            yield join(base_path + index_split_path), element
 
 
 def put(obj: Collection, path: str, value: Any) -> None:

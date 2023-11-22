@@ -206,5 +206,26 @@ class TestDatapath(unittest.TestCase):
         except LookupError:
             self.fail('discard did not suppress LookupError')
 
-    def test_iterate(self):
-        raise Exception('TODO: test iterate')
+    def test_iterate_valid(self):
+        tests = (
+            ('a[]', {'a': [1, 2, 3]}, (('a[0]', 1), ('a[1]', 2), ('a[2]', 3))),
+            ('a.b[]', {'a': {'b': [1, 2, 3]}}, (('a.b[0]', 1), ('a.b[1]', 2), ('a.b[2]', 3))),
+            (
+                'a[].b[]',
+                {'a': [
+                    {'b': [1, 2, 3]},
+                    {'b': [4, 5, 6]},
+                ]},
+                (
+                    ('a[0].b[0]', 1),
+                    ('a[0].b[1]', 2),
+                    ('a[0].b[2]', 3),
+                    ('a[1].b[0]', 4),
+                    ('a[1].b[1]', 5),
+                    ('a[1].b[2]', 6),
+                ),
+            ),
+        )
+        for i, (iter_path, obj, expected) in enumerate(tests):
+            with self.subTest(f'index {i}'):
+                self.assertEqual(tuple(datapath.iterate(obj, iter_path)), expected)
