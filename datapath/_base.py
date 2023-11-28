@@ -5,7 +5,7 @@ datapath -- implement dotted.and.indexed[0].paths for recursive list/dict struct
 * inside "[" and "]" must be an integer list index
 * numeric keys outside of square brackets are handled as strings/dict keys
 """
-from typing import Any, Generator, Iterable, cast
+from typing import Any, Generator, Iterable
 
 import regex as re
 
@@ -66,7 +66,7 @@ def split(path: str, iterable: bool = False) -> SplitPath:
                 if iterable:
                     split_path.append(ITERATION_POINT)
                 else:
-                    raise InvalidIterationError('list index required; iteration not enabled here')
+                    raise InvalidIterationError('list index required; square brackets may not be empty')
         else:
             split_path.append(part)
     return tuple(split_path)
@@ -151,7 +151,7 @@ def _leaf(obj: Collection, split_path: SplitPath) -> CollectionKey:
             raise PathLookupError(f'{join(at_path[:-1])}: could not find key/index {key!r}') from None
     leaf_key = split_path[-1]
     _contextual_validate_key_collection_type(at_path, obj, leaf_key)
-    return cast(CollectionKey, (obj, leaf_key))
+    return obj, leaf_key
 
 
 def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
@@ -203,7 +203,10 @@ def iterate(obj: Collection,
     yield from _iterate(obj, split_path, (), default)
 
 
-def _iterate(obj: Collection, split_path: SplitPath, base_path: SplitPath, default: Any) -> Generator[tuple[str, Any], None, None]:
+def _iterate(obj: Collection,
+             split_path: SplitPath,
+             base_path: SplitPath,
+             default: Any) -> Generator[tuple[str, Any], None, None]:
     """recursive core of iterate()"""
     if not isinstance(obj, _collection_types):
         raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')

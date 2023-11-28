@@ -3,6 +3,7 @@ import unittest
 import datapath
 import datapath._base
 import datapath.folding
+import datapath.types
 
 valid_paths = (
     'test',
@@ -63,6 +64,10 @@ class TestDatapath(unittest.TestCase):
                     self.assertEqual(datapath.split(path), expected)
                 except datapath.ValidationError:
                     self.fail(f'path `{path}` was found invalid')
+
+    def test_split_path_invalid_iteration(self):
+        with self.assertRaises(datapath.types.InvalidIterationError):
+            datapath.split('a[]', iterable=False)
 
     def test_split_join(self):
         for path in valid_paths:

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generator
 
 from ._base import (
     get,
