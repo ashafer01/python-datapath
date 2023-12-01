@@ -5,6 +5,8 @@ datapath -- implement dotted.and.indexed[0].paths for recursive list/dict struct
 * inside "[" and "]" must be an integer list index
 * numeric keys outside of square brackets are handled as strings/dict keys
 """
+import functools
+import sys
 from typing import Any, Generator, Iterable
 
 import regex as re
@@ -67,6 +69,11 @@ def split(path: str, iterable: bool = False) -> SplitPath:
                     split_path.append(ITERATION_POINT)
                 else:
                     raise InvalidIterationError('list index required; square brackets may not be empty')
+        elif '*' in part:
+            if iterable:
+                split_path.append(part)
+            else:
+                raise InvalidIterationError('* is not allowed here')
         else:
             split_path.append(part)
     return tuple(split_path)
@@ -182,22 +189,31 @@ def iterate(obj: Collection,
             default: Any = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
     """
     yield entries from a collection using an iterable path -- that is, one containing one or more
-    sets of empty square brackets ("[]")
+    sets of empty square brackets ("[]") or a key with a * ("*"/"wild*cards*"/etc.)
 
-    * the path part just before an iteration point must refer to a list
+    * the path part just before an iteration point must refer to a list for [] and a dict
+      for *-keys
     * each yielded value is a tuple (path, value); paths will be resolved with specific indexes
-      placed into all empty square brackets
+      placed into all empty square brackets and specific keys replacing *-keys
     * default passes through to leaf get() calls
-    * raises PathLookupError if a list before [] is not found, or an intermediate element leading to
-      a list is not found
+    * raises PathLookupError if a collection before an iteration point is not found, or an
+      intermediate element leading to a collection is not found
 
     Examples:
     * "test1.test2[3]"  # no empty square brackets, yields one result, equivalent to get()
     * "test1[]"         # "test1" in a root dictionary must be a list, each entry will be yielded
     * "test1[].test2"   # "test1" in a root dictionary must be a list, key "test2" from each dict
-                          entry will be yielded
+                        # entry will be yielded
     * "test1[].test2[]" # recursion works
     * "[][0]"           # works without dicts
+    * "test1.*"         # "test1" in a root dictionary must be a dict, yield each key
+    * "test1.test*"     # "test1" in a root dictionary must be a dict, yield each key that starts
+                        # with "test"
+    * "test1.*test*"    # "test1" in a root dictionary must be a dict, yield each key that
+                        # contains "test"
+    * "test1.*test*"    # "test1" in a root dictionary must be a dict, yield each key that
+                        # contains "test"
+    * "test1[].*"       # combining dict and list iteration works
     """
     split_path = split(path, iterable=True)
     yield from _iterate(obj, split_path, (), default)
@@ -211,38 +227,81 @@ def _iterate(obj: Collection,
     if not isinstance(obj, _collection_types):
         raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')
 
+    star_index = _star_part_index(split_path)
     try:
         iter_index = split_path.index(ITERATION_POINT)
     except ValueError:
-        # if there is no iteration point in the path, then this is just get()
+        iter_index = sys.maxsize
+
+    if star_index < iter_index:
+        # if a *-key comes before a [], then we need to operate on a dict
+        # and filter for wildcard matches
+        iter_index = star_index
+        check = _check_dict_iter
+        def iter_collection(collection):
+            for key, value in collection.items():
+                if not _wildcard_match(split_path[star_index], key):
+                    continue
+                yield key, value
+    elif iter_index < star_index:
+        # if a [] comes before a *-key, then we need to operate on a list
+        check = _check_list_iter
+        iter_collection = enumerate
+    else:
+        # star_index and iter_index can only be equal if there is neither a [] or a *-key,
+        # in which case we just need to get()
         yield join(base_path + split_path), _get(obj, split_path, default)
         return
 
-    # find the list referred to by the portion of the path before the first iteration point
+    # find the collection referred to by the portion of the path before the first iteration point
     before_split_path = split_path[:iter_index]
     try:
         collection = _get(obj, before_split_path)
     except PathLookupError:
         raise
     except LookupError:
-        path = join(before_split_path[:-1])
+        path = join(base_path + before_split_path[:-1])
         if not path:
             path = '<root>'
         key = before_split_path[-1]
-        raise PathLookupError(f'{path}: could not find list at key/index {key!r} to iterate') from None
-    if not isinstance(collection, list):
-        raise InvalidIterationError('iteration only supported on lists')
-
-    # iterate the list
+        raise PathLookupError(f'{path}: could not find collection at key/index {key!r} to iterate') from None
+    check(collection)
     after_split_path = split_path[iter_index+1:]
-    for i, element in enumerate(collection):
-        index_split_path = base_path + before_split_path + (i,)
+
+    # iterate the collection
+    for key, element in iter_collection(collection):
+        key_split_path = base_path + before_split_path + (key,)
         if after_split_path:
             # if there is a path after the iteration point, element must be a Collection
-            yield from _iterate(element, after_split_path, index_split_path, default)
+            yield from _iterate(element, after_split_path, key_split_path, default)
         else:
             # if there is no path after, then this element is what we're after
-            yield join(index_split_path), element
+            yield join(key_split_path), element
+
+
+def _star_part_index(split_path: SplitPath) -> int:
+    for index, part in enumerate(split_path):
+        if isinstance(part, str) and '*' in part:
+            return index
+    return sys.maxsize
+
+
+def _wildcard_match(star_part: str, key: str) -> bool:
+    if star_part == '*':
+        return True
+    substrings = map(re.escape, star_part.split('*'))
+    pattern = '^' + '.*?'.join(substrings) + '$'
+    return bool(re.match(pattern, key))
+
+
+def _check_dict_iter(collection: Collection):
+    if not isinstance(collection, dict):
+        raise InvalidIterationError('*-keys must be preceeded by a dict')
+
+
+def _check_list_iter(collection: Collection):
+    if not isinstance(collection, list):
+        raise InvalidIterationError('[] must be preceeded by a list')
 
 
 def put(obj: Collection, path: str, value: Any) -> None:

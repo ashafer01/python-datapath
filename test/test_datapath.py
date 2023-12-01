@@ -66,8 +66,14 @@ class TestDatapath(unittest.TestCase):
                     self.fail(f'path `{path}` was found invalid')
 
     def test_split_path_invalid_iteration(self):
-        with self.assertRaises(datapath.types.InvalidIterationError):
-            datapath.split('a[]', iterable=False)
+        tests = (
+            'a[]',
+            'a.*',
+            'a.b*c',
+        )
+        for i, path in enumerate(tests):
+            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath.types.InvalidIterationError):
+                datapath.split(path, iterable=False)
 
     def test_split_join(self):
         for path in valid_paths:
@@ -232,6 +238,11 @@ class TestDatapath(unittest.TestCase):
             ),
             ('[][][]', [[[1, 2]]], (('[0][0][0]', 1), ('[0][0][1]', 2))),
             ('[0]', [1], (('[0]', 1),)),
+            ('a.*', {'a': {'b': 1, 'c': 2}}, (('a.b', 1), ('a.c', 2))),
+            ('a.b*', {'a': {'b': 0, 'b1': 1, 'b2': 2, 'c': 3}}, (('a.b', 0), ('a.b1', 1), ('a.b2', 2))),
+            ('a.b*c', {'a': {'bc': 1, 'bxyzc': 2, 'b': 3, 'c': 4}}, (('a.bc', 1), ('a.bxyzc', 2))),
+            ('a[].*', {'a': [{'b': 1}, {'c': 2}]}, (('a[0].b', 1), ('a[1].c', 2))),
+            ('a.*[]', {'a': {'b': [1, 2], 'c': [3, 4]}}, (('a.b[0]', 1), ('a.b[1]', 2), ('a.c[0]', 3), ('a.c[1]', 4))),
         )
         for i, (iter_path, obj, expected) in enumerate(tests):
             with self.subTest(f'index {i}'):
@@ -258,6 +269,10 @@ class TestDatapath(unittest.TestCase):
     def test_iterate_passthru_get_lookup_error(self):
         with self.assertRaises(LookupError):
             tuple(datapath.iterate({'a': 1}, 'b'))
+
+    def test_iterate_wrong_star_on_list(self):
+        with self.assertRaises(datapath.InvalidIterationError):
+            tuple(datapath.iterate({'a': []}, 'a.*'))
 
     def test_iterate_default(self):
         self.assertEqual(
