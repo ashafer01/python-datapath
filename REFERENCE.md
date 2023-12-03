@@ -54,7 +54,7 @@ Examples:
 * `test1[].test2`   # "test1" in a root dict must be a list, key "test2" from each dict entry will be yielded
 * `test1[].test2[]` # recursion works
 * `[][0]`           # works without dicts
-* `test[1:10:2]     # python slicing is supported
+* `test[1:10:2]`    # python slicing is supported
 * `test1.*`         # "test1" in a root dict must be a dict, yield each key
 * `test1.test*`     # "test1" in a root dict must be a dict, yield each key that starts with "test"
 * `test1.*test*`    # "test1" in a root dict must be a dict, yield each key that contains "test"
