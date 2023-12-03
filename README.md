@@ -23,7 +23,7 @@ _In development_: public API is not stable, support available solely at develope
   * Dictionary keys may contain `*` to iterate over all keys in the preceeding dictionary; iterating all keys
     matching a wildcard pattern is also supported
   * Square brackets may be empty to iterate over all items in the preceeding list
-  * The Python range syntax [x:y:z] is fully supported
+  * The Python range syntax `[x:y:z]` is fully supported
   * An `InvalidIterationError` will be raised if these iterable path parts are passed to functions other than
     `iterate()`.
 * A `ValidationError` will be raised if the data structure does not match types of all path parts:
