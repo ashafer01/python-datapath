@@ -11,6 +11,7 @@ setup(
     author_email='ashafer@pm.me',
     description=desc,
     long_description=f'{desc}\n\nDocs at {url}',
+    long_description_content_type='text/x-rst',
     url=url,
     license='MIT',
 
