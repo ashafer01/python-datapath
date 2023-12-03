@@ -214,7 +214,7 @@ instance by default. collection.get() can override this behavior
 #### method `collection.get()`
 
 ```
-collection.get(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.get(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Any
 ```
 
 identical to get() for the wrapped root object
@@ -225,7 +225,7 @@ then the result will be wrapped in a new collection instance
 #### method `collection.iterate()`
 
 ```
-collection.iterate(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.iterate(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Generator[tuple[str, Any], NoneType, NoneType]
 ```
 
 identical to iterate() for the wrapped root object
@@ -236,7 +236,7 @@ then the yielded result will be wrapped in a new collection instance
 #### method `collection.put()`
 
 ```
-collection.put(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.put(self, path: str, value: Any) -> None
 ```
 
 identical to put() for the wrapped root object
@@ -244,7 +244,7 @@ identical to put() for the wrapped root object
 #### method `collection.delete()`
 
 ```
-collection.delete(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.delete(self, path: str) -> None
 ```
 
 identical to delete() for the wrapped root object
@@ -252,7 +252,7 @@ identical to delete() for the wrapped root object
 #### method `collection.discard()`
 
 ```
-collection.discard(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.discard(self, path: str) -> None
 ```
 
 identical to discard() for the wrapped root object
@@ -260,7 +260,7 @@ identical to discard() for the wrapped root object
 #### method `collection.fold()`
 
 ```
-collection.fold(root_obj: datapath.types.Collection, wrap: bool = False)
+collection.fold(self) -> dict
 ```
 
 convert the collection to a flat path dict using `fold_path_dict()`
@@ -277,7 +277,7 @@ Base class used to enable custom processing of the data structure during unfold 
 #### method `UnfoldProcessor.process_list()`
 
 ```
-UnfoldProcessor.process_list()
+UnfoldProcessor.process_list(self, list_: list) -> Any
 ```
 
 called on a completed list; return value is inserted into the resulting data structure
@@ -286,7 +286,7 @@ instead of the original list
 #### method `UnfoldProcessor.process_dict()`
 
 ```
-UnfoldProcessor.process_dict()
+UnfoldProcessor.process_dict(self, dict_: datapath.types.Map) -> Any
 ```
 
 called on a completed dict; return value is inserted into the resulting data structure

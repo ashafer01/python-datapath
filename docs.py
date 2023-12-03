@@ -75,7 +75,7 @@ def make_docs():
                         descriptor = 'attribute'
                     f.write(f'#### {descriptor} `{obj_name}.{attr_name}{suffix}`\n')
                     if do_sig:
-                        f.write(f'\n```\n{obj_name}.{attr_name}{signature(obj)}\n```\n')
+                        f.write(f'\n```\n{obj_name}.{attr_name}{signature(attr)}\n```\n')
                     write_doc(f, attr_doc, 2)
                     f.write('\n')
             f.write('\n')
