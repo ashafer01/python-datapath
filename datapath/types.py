@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, NewType
 
 
 class _IterationPoint:
@@ -8,18 +8,27 @@ class _IterationPoint:
     def __repr__(self) -> str:
         return 'ITERATION_POINT'
 
-Key = int|str
-SplitPath = tuple[Key|_IterationPoint, ...]
-Map = dict[str, Any]
-Collection = list|Map
-CollectionKey = tuple[list, int]|tuple[Map, str]
 
-PartialList = list[tuple[int, Any]]
-PartialCollection = PartialList|Map
-PathDict = dict[str, Any]
-RootPathDict = dict[str, Collection]
+class _NoDefault:
+    def __str__(self) -> str:
+        return 'NO_DEFAULT'
 
-NO_DEFAULT = object()
+    def __repr__(self) -> str:
+        return 'NO_DEFAULT'
+
+
+Key = NewType('Key', int|str)
+SplitPath = NewType('SplitPath', tuple[Key|_IterationPoint, ...])
+Map = NewType('Map', dict[str, Any])
+Collection = NewType('Collection', list|Map)
+CollectionKey = NewType('CollectionKey', tuple[list, int]|tuple[Map, str])
+
+PartialList = NewType('PartialList', list[tuple[int, Any]])
+PartialCollection = NewType('PartialCollection', PartialList|Map)
+PathDict = NewType('PathDict', dict[str, Any])
+RootPathDict = NewType('RootPathDict', dict[str, Collection])
+
+NO_DEFAULT = _NoDefault()
 ITERATION_POINT = _IterationPoint()
 
 

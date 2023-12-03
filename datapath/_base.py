@@ -1,9 +1,5 @@
 """
 datapath -- implement dotted.and.indexed[0].paths for recursive list/dict structures
-
-* dict keys can be any string excluding "[" and "." characters
-* inside "[" and "]" must be an integer list index
-* numeric keys outside of square brackets are handled as strings/dict keys
 """
 import functools
 import sys
@@ -50,9 +46,7 @@ def validate_path(path: str) -> None:
 
 
 def split(path: str, iterable: bool = False) -> SplitPath:
-    """inverse of join()
-    split the path string to it's component keys/indexes in order
-    """
+    """inverse of join() -- split the path string to it's component keys/indexes in order"""
     if not path:
         return ()
     split_path: list[Key] = []
@@ -64,11 +58,10 @@ def split(path: str, iterable: bool = False) -> SplitPath:
             index = part[1:-1]
             if index:
                 split_path.append(int(index))
+            elif iterable:
+                split_path.append(ITERATION_POINT)
             else:
-                if iterable:
-                    split_path.append(ITERATION_POINT)
-                else:
-                    raise InvalidIterationError('list index required; square brackets may not be empty')
+                raise InvalidIterationError('list index required; square brackets may not be empty')
         elif '*' in part:
             if iterable:
                 split_path.append(part)
@@ -80,9 +73,10 @@ def split(path: str, iterable: bool = False) -> SplitPath:
 
 
 def join(split_path: Iterable[Key]) -> str:
-    """inverse of split()
-    combine an iterable of keys/indexes into a dotted-path format
+    """inverse of split() -- combine an iterable of keys/indexes into a dotted-path format
+
     Example:
+
     ```
     >>> join(['a', 'b', 5])
     'a.b[5]'
@@ -189,31 +183,27 @@ def iterate(obj: Collection,
             default: Any = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
     """
     yield entries from a collection using an iterable path -- that is, one containing one or more
-    sets of empty square brackets ("[]") or a key with a * ("*"/"wild*cards*"/etc.)
+    sets of empty square brackets (`[]`) or a key with a `*` (`*`/`wild*cards*`/etc.)
 
-    * the path part just before an iteration point must refer to a list for [] and a dict
-      for *-keys
+    * the path part just before an iteration point must refer to a list for `[]` and a dict
+      for `*`-keys
     * each yielded value is a tuple (path, value); paths will be resolved with specific indexes
-      placed into all empty square brackets and specific keys replacing *-keys
-    * default passes through to leaf get() calls
-    * raises PathLookupError if a collection before an iteration point is not found, or an
+      placed into all empty square brackets and specific keys replacing `*`-keys
+    * `default` passes through to leaf `get()` calls
+    * raises `PathLookupError` if a collection before an iteration point is not found, or an
       intermediate element leading to a collection is not found
 
     Examples:
-    * "test1.test2[3]"  # no empty square brackets, yields one result, equivalent to get()
-    * "test1[]"         # "test1" in a root dictionary must be a list, each entry will be yielded
-    * "test1[].test2"   # "test1" in a root dictionary must be a list, key "test2" from each dict
-                        # entry will be yielded
-    * "test1[].test2[]" # recursion works
-    * "[][0]"           # works without dicts
-    * "test1.*"         # "test1" in a root dictionary must be a dict, yield each key
-    * "test1.test*"     # "test1" in a root dictionary must be a dict, yield each key that starts
-                        # with "test"
-    * "test1.*test*"    # "test1" in a root dictionary must be a dict, yield each key that
-                        # contains "test"
-    * "test1.*test*"    # "test1" in a root dictionary must be a dict, yield each key that
-                        # contains "test"
-    * "test1[].*"       # combining dict and list iteration works
+
+    * `test1.test2[3]`  # no empty square brackets, yields one result, equivalent to get()
+    * `test1[]`         # "test1" in a root dict must be a list, each entry will be yielded
+    * `test1[].test2`   # "test1" in a root dict must be a list, key "test2" from each dict entry will be yielded
+    * `test1[].test2[]` # recursion works
+    * `[][0]`           # works without dicts
+    * `test1.*`         # "test1" in a root dict must be a dict, yield each key
+    * `test1.test*`     # "test1" in a root dict must be a dict, yield each key that starts with "test"
+    * `test1.*test*`    # "test1" in a root dict must be a dict, yield each key that contains "test"
+    * `test1[].*`       # combining dict and list iteration works
     """
     split_path = split(path, iterable=True)
     yield from _iterate(obj, split_path, (), default)

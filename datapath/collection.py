@@ -8,6 +8,7 @@ from ._base import (
     discard,
     _collection_types,
 )
+from .folding import fold_path_dict
 from .types import (
     Key,
     Collection,
@@ -17,7 +18,7 @@ from .types import (
 
 class collection:
     """
-    wrapper for a list/dict object that calls get/put/delete/discard on it's wrapped
+    wrapper for a list/dict object that calls get/iterate/put/delete/discard on it's wrapped
     object.
 
     also supports square bracket syntax -- if a key is a string it will always be
@@ -55,6 +56,11 @@ class collection:
         raise TypeError('unsupported key type')
 
     def iterate(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
+        """identical to iterate() for the wrapped root object
+
+        if the iteration yields a Collection object and wrap or self.wrap is True,
+        then the yielded result will be wrapped in a new collection instance
+        """
         wrap = self._resolve_wrap(wrap)
         for item_path, item in iterate(self.root, path, default):
             if wrap and isinstance(item, _collection_types):
@@ -85,3 +91,7 @@ class collection:
     def discard(self, path: str) -> None:
         """identical to discard() for the wrapped root object"""
         discard(self.root, path)
+
+    def fold(self) -> dict:
+        """convert the collection to a flat path dict using `fold_path_dict()`"""
+        return fold_path_dict(self.root)

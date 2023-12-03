@@ -35,7 +35,12 @@ class UnfoldProcessor:
         return dict_
 
 
-_default_processor = UnfoldProcessor()
+class _DefaultUnfoldProcessor(UnfoldProcessor):
+    def __repr__(self) -> str:
+        return '<DefaultUnfoldProcessor>'
+
+
+_default_processor = _DefaultUnfoldProcessor()
 
 
 def unfold_path_dict(paths: PathDict,
@@ -44,24 +49,26 @@ def unfold_path_dict(paths: PathDict,
                      complete_root: bool = True,
                      complete_intermediates: bool = True) -> RootPathDict|Collection:
     """
-    * inverse of fold_path_dict()
+    * inverse of `fold_path_dict()`
     * accepts a flat dictionary where keys are dotted paths, and values are the leaf values for a
       data structure
     * returns a dictionary with only one key, "" (the empty string, meaning the root path), which
       has the root recurisve Collection as it's value
-    * if root_path is set to False, return the root collection rather than the root path dict
-    * if complete_root is set to False, the working root collection will not have any processing done
+    * if `root_path` is set to False, return the root collection rather than the root path dict
+    * if `complete_root` is set to False, the working root collection will not have any processing done
       before returning; this is useful if a root is being assembled from multiple sources.
       `complete_collection(root, processor)` can be called to take this action separately
-    * if complete_intermediates is set to False, the intermediate collections will also be left
+    * if `complete_intermediates` is set to False, the intermediate collections will also be left
       unprocessed
     * all paths must have consistent types for the same intermediate Collections, example:
 
+      ```
       {
         'key1.key2': 5,  # this makes root field 'key1' a dict, with initial value {'key2': 5}
         'key1[0]: 17,    # this wants root field 'key1' to be a list, but it's a dict already
                          #   this is *invalid*
       }
+      ```
 
     * reminder that dict iteration ordering is not determinate; therefore, for inconsistent
       type ValidationErrors, the types reported in the error may differ from one run to the next
@@ -125,6 +132,7 @@ def complete_collection(collection: Any,
                         require_collection: bool = True) -> Any:
     """
     perform final post-processing steps on a completed collection.
+
     * if require_collection is set to False and `collection` is not a Collection, return the
       original value unmodified
     * raises a ValidationError for non-collections by default
@@ -159,7 +167,7 @@ def _complete_partial_list(partial_list: PartialList) -> list:
 
 def fold_path_dict(root: Collection, root_path: str = '') -> PathDict:
     """
-    * inverse of unfold_path_dict()
+    * inverse of `unfold_path_dict()`
     * accept a Collection to treat as the root, and optional root path string to prepend
     * return a folded path dict, where each key is a dotted path to a leaf value, and values are
       the leaf values themselves.
@@ -172,7 +180,7 @@ def fold_path_dict(root: Collection, root_path: str = '') -> PathDict:
 
 def _fold_path_dict(path_dict: PathDict, at_path: list[Key], element: Any) -> None:
     """
-    recursive core of fold_path_dict(), mutates path_dict with results
+    recursive core of `fold_path_dict()`, mutates `path_dict` with results
     """
     if isinstance(element, list):
         iter_element = enumerate(element)
