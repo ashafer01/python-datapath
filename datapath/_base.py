@@ -45,7 +45,7 @@ def is_path(path: str, iterable: bool = True) -> bool:
     """validate the path string and return a bool, True if it's valid
 
     * all public methods that accept path strings validate them first
-    * set `iterable=False` if you do not want interable paths to be considered valid
+    * set `iterable=False` if you do not want iterable paths to be considered valid
     """
     if path == '':
         return True
@@ -65,7 +65,7 @@ def validate_path(path: str, iterable: bool = True) -> None:
     """validate the path string and raise a ValidationError if it's invalid
 
     * all public methods that accept path strings validate them first
-    * set `iterable=False` if you do not want interable paths to be considered valid
+    * set `iterable=False` if you do not want iterable paths to be considered valid
     """
     if path == '':
         return
