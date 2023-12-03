@@ -18,7 +18,7 @@ class _NoDefault:
 
 
 Key = NewType('Key', int|str)
-SplitPath = NewType('SplitPath', tuple[Key|_IterationPoint, ...])
+SplitPath = NewType('SplitPath', tuple[Key|_IterationPoint|range, ...])
 Map = NewType('Map', dict[str, Any])
 Collection = NewType('Collection', list|Map)
 CollectionKey = NewType('CollectionKey', tuple[list, int]|tuple[Map, str])
