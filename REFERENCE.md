@@ -185,7 +185,7 @@ unfold_path_dict(paths: datapath.types.PathDict, processor: datapath.folding.Unf
   ```
   {
     'key1.key2': 5,  # this makes root field 'key1' a dict, with initial value {'key2': 5}
-    'key1[0]: 17,    # this wants root field 'key1' to be a list, but it's a dict already
+    'key1[0]': 17,   # this wants root field 'key1' to be a list, but it's a dict already
                      #   this is *invalid*
   }
   ```
