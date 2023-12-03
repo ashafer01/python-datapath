@@ -14,8 +14,8 @@ setup(
     url=url,
     license='MIT',
 
-    python_requires='>=3.10.0',
     packages=['datapath'],
+    python_requires='>=3.10.0',
     install_requires=[
         'regex',
     ],
