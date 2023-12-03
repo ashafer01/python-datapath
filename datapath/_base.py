@@ -54,7 +54,7 @@ def is_path(path: str, iterable: bool = True) -> bool:
         return bool(match)
     else:
         try:
-            _split_match(match)
+            _split_match(match, iterable=False)
             return True
         except ValidationError:
             return False
@@ -70,7 +70,7 @@ def validate_path(path: str, iterable: bool = True) -> None:
         return
     match = _match_validate(path)
     if not iterable:
-        _split_match(match)
+        _split_match(match, iterable=False)
 
 
 def _parse_range(range_part: str) -> range:
