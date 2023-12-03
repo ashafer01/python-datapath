@@ -18,29 +18,76 @@ valid_paths = (
     '1234567[1]',
     '[0]',
     '[5]',
+    '[-1]',
     '',
 )
 
+valid_iterable_paths = (
+    'test[]',
+    '[]',
+    'test.*',
+    'test.*wild*card*',
+    '*',
+    '[::2]',
+    '[2::3]',
+    '[-1:-10:-1]',
+    '[].*[5:].test',
+)
+
+invalid_paths = (
+    '[1'
+    'test[1',
+    '[1[2]',
+    '[,%$^%^!@#$%[1]',
+)
+
+
 class TestDatapath(unittest.TestCase):
-    def test_validate_path_valid_cases(self):
+    def test_validate_path_valid_cases_iterable_false(self):
         for valid_path in valid_paths:
             with self.subTest(msg=f'valid path `{valid_path}`'):
                 try:
-                    datapath.validate_path(valid_path)
+                    datapath.validate_path(valid_path, iterable=False)
                 except datapath.ValidationError:
                     self.fail(f'valid path `{valid_path}` was found invalid')
 
+    def test_validate_path_valid_cases_iterable_true(self):
+        for valid_path in valid_paths + valid_iterable_paths:
+            with self.subTest(msg=f'valid path `{valid_path}`'):
+                try:
+                    datapath.validate_path(valid_path, iterable=True)
+                except datapath.ValidationError:
+                    self.fail(f'valid path `{valid_path}` was found invalid')
 
-    def test_validate_path_invalid_cases(self):
-        invalid_paths = (
-            '[1'
-            'test[1',
-            '[1[2]',
-            '[,%$^%^!@#$%[1]',
-        )
+    def test_validate_path_invalid_cases_iterable_false(self):
+        for invalid_path in invalid_paths + valid_iterable_paths:
+            with self.subTest(msg=f'invalid path `{invalid_path}`'), self.assertRaises(datapath.ValidationError):
+                datapath.validate_path(invalid_path, iterable=False)
+
+    def test_validate_path_invalid_cases_iterable_true(self):
         for invalid_path in invalid_paths:
             with self.subTest(msg=f'invalid path `{invalid_path}`'), self.assertRaises(datapath.ValidationError):
-                datapath.validate_path(invalid_path)
+                datapath.validate_path(invalid_path, iterable=True)
+
+    def test_is_path_valid_cases_iterable_false(self):
+        for valid_path in valid_paths:
+            with self.subTest(msg=f'valid path `{valid_path}`'):
+                self.assertTrue(datapath.is_path(valid_path, iterable=False))
+
+    def test_is_path_valid_cases_iterable_true(self):
+        for valid_path in valid_paths + valid_iterable_paths:
+            with self.subTest(msg=f'valid path `{valid_path}`'):
+                self.assertTrue(datapath.is_path(valid_path, iterable=True))
+
+    def test_is_path_invalid_cases_iterable_false(self):
+        for invalid_path in invalid_paths + valid_iterable_paths:
+            with self.subTest(msg=f'invalid path `{invalid_path}`'):
+                self.assertFalse(datapath.is_path(invalid_path, iterable=False))
+
+    def test_is_path_invalid_cases_iterable_true(self):
+        for invalid_path in invalid_paths:
+            with self.subTest(msg=f'invalid path `{invalid_path}`'):
+                self.assertFalse(datapath.is_path(invalid_path, iterable=True))
 
     def test_split_path(self):
         tests = (

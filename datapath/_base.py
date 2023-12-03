@@ -23,9 +23,9 @@ from .types import (
 )
 
 _key_pattern = '(?P<part>[^[.]+)'
-_number_pattern = r'-?[0-9]'
-_range_parts_pattern = '(?::' + _number_pattern + '*){0,2}'
-_index_pattern = r'(?P<part>\[' + _number_pattern + r'*' + _range_parts_pattern + r'\])'
+_number_pattern = r'-?[0-9]*'
+_range_parts_pattern = '(?::' + _number_pattern + '){0,2}'
+_index_pattern = r'(?P<part>\[' + _number_pattern + _range_parts_pattern + r'\])'
 _key_with_index_pattern = _key_pattern + _index_pattern + '?'
 _part_pattern = _key_with_index_pattern + '|' + _index_pattern
 _path_re = re.compile('^(?:' + _part_pattern + r')(?:\.' + _part_pattern + ')*$')
@@ -50,14 +50,15 @@ def is_path(path: str, iterable: bool = True) -> bool:
     if path == '':
         return True
     match = _path_re.match(path)
+    if not match:
+        return False
     if iterable:
-        return bool(match)
-    else:
-        try:
-            _split_match(match, iterable=False)
-            return True
-        except ValidationError:
-            return False
+        return True
+    try:
+        _split_match(match, iterable=False)
+        return True
+    except ValidationError:
+        return False
 
 
 def validate_path(path: str, iterable: bool = True) -> None:
