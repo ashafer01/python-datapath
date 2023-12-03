@@ -4,7 +4,7 @@
 
 ```
 Key = int | str
-SplitPath = tuple[Union[datapath.types.Key, datapath.types._IterationPoint], ...]
+SplitPath = tuple[Union[datapath.types.Key, datapath.types._IterationPoint, range], ...]
 Map = dict[str, Any]
 Collection = Union[list, datapath.types.Map]
 CollectionKey = tuple[list, int] | tuple[datapath.types.Map, str]
