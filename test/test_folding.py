@@ -93,4 +93,11 @@ class TestFolding(unittest.TestCase):
 
 
     def test_fold_path_dict(self):
-        raise Exception('TODO: test fold_path_dict')
+        test = {'a': {'b': list('cde'), 'f': 'g'}}
+        expected_sort_items = (
+            ('a.b[0]', 'c'),
+            ('a.b[1]', 'd'),
+            ('a.b[2]', 'e'),
+            ('a.f', 'g'),
+        )
+        self.assertEqual(tuple(sorted(datapath.folding.fold_path_dict(test).items())), expected_sort_items)
