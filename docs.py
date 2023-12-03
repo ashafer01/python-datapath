@@ -10,13 +10,12 @@ indent_length = 4
 def write_doc(f, obj_doc, level=1):
     if not obj_doc.startswith('\n'):
         f.write('\n')
+    obj_doc = obj_doc.rstrip()
     for line in obj_doc.splitlines():
         if line.startswith(' ' * indent_length * level):
             f.write(line[indent_length * level:])
         else:
             f.write(line)
-        f.write('\n')
-    if not obj_doc.endswith('\n'):
         f.write('\n')
 
 
@@ -59,6 +58,7 @@ def make_docs():
                 f.write(f'\n```\n{obj_name}{signature(obj)}\n```\n')
             write_doc(f, obj_doc)
             if do_class:
+                f.write('\n')
                 for attr_name, attr in obj.__dict__.items():
                     if attr_name.startswith('_'):
                         continue
@@ -73,10 +73,11 @@ def make_docs():
                         suffix = '()'
                     else:
                         descriptor = 'attribute'
-                    f.write(f'#### {descriptor} `{obj_name}.{attr_name}{suffix}`')
+                    f.write(f'#### {descriptor} `{obj_name}.{attr_name}{suffix}`\n')
                     if do_sig:
                         f.write(f'\n```\n{obj_name}.{attr_name}{signature(obj)}\n```\n')
                     write_doc(f, attr_doc, 2)
+                    f.write('\n')
             f.write('\n')
 
 

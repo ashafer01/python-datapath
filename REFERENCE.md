@@ -30,8 +30,6 @@ obtain the value at the path
 * if default is passed, return it if the leaf value was not found
 * if default is not passed and the leaf value is not found, propagate the LookupError
 
-
-
 ### function `iterate()`
 
 ```
@@ -44,7 +42,7 @@ sets of empty square brackets (`[]`) or a key with a `*` (`*`/`wild*cards*`/etc.
 * the path part just before an iteration point must refer to a list for `[]` and a dict
   for `*`-keys
 * each yielded value is a tuple (path, value); paths will be resolved with specific indexes
-  placed into all empty square brackets and specific keys replacing `*`-keys
+  placed into all empty square brackets / ranges, and specific keys replacing `*`-keys
 * `default` passes through to leaf `get()` calls
 * raises `PathLookupError` if a collection before an iteration point is not found, or an
   intermediate element leading to a collection is not found
@@ -56,12 +54,11 @@ Examples:
 * `test1[].test2`   # "test1" in a root dict must be a list, key "test2" from each dict entry will be yielded
 * `test1[].test2[]` # recursion works
 * `[][0]`           # works without dicts
+* `test[1:10:2]     # python slicing is supported
 * `test1.*`         # "test1" in a root dict must be a dict, yield each key
 * `test1.test*`     # "test1" in a root dict must be a dict, yield each key that starts with "test"
 * `test1.*test*`    # "test1" in a root dict must be a dict, yield each key that contains "test"
 * `test1[].*`       # combining dict and list iteration works
-
-
 
 ### function `put()`
 
@@ -77,8 +74,6 @@ set the value at the path
 * for leaf lists, this will propagate an IndexError if the index was not already set
 * for leaf dicts, this should always succeed
 
-
-
 ### function `delete()`
 
 ```
@@ -91,8 +86,6 @@ delete the value at the path
 * if any non-leaf path parts are not found, a LookupError will always be
   propagated to the caller
 * always propagates a LookupError if the key/index was not already set
-
-
 
 ### function `discard()`
 
@@ -108,25 +101,27 @@ ensure the path does not exist
 * if the leaf exists, it will be deleted
 * if the leaf does not exist, do nothing
 
-
-
 ### function `is_path()`
 
 ```
-is_path(path: str) -> bool
+is_path(path: str, iterable: bool = True) -> bool
 ```
 
 validate the path string and return a bool, True if it's valid
 
+* all public methods that accept path strings validate them first
+* set `iterable=False` if you do not want interable paths to be considered valid
 
 ### function `validate_path()`
 
 ```
-validate_path(path: str) -> None
+validate_path(path: str, iterable: bool = True) -> None
 ```
 
 validate the path string and raise a ValidationError if it's invalid
 
+* all public methods that accept path strings validate them first
+* set `iterable=False` if you do not want interable paths to be considered valid
 
 ### function `split()`
 
@@ -135,7 +130,6 @@ split(path: str, iterable: bool = False) -> datapath.types.SplitPath
 ```
 
 inverse of join() -- split the path string to it's component keys/indexes in order
-
 
 ### function `join()`
 
@@ -152,8 +146,6 @@ Example:
 'a.b[5]'
 ```
 
-
-
 ### function `leaf()`
 
 ```
@@ -161,7 +153,6 @@ leaf(obj: datapath.types.Collection, path: str) -> datapath.types.CollectionKey
 ```
 
 find the collection object and key/index at the right side of the path
-
 
 ### function `unfold_path_dict()`
 
@@ -194,8 +185,6 @@ unfold_path_dict(paths: datapath.types.PathDict, processor: datapath.folding.Unf
   type ValidationErrors, the types reported in the error may differ from one run to the next
   on the same data set
 
-
-
 ### function `fold_path_dict()`
 
 ```
@@ -206,8 +195,6 @@ fold_path_dict(root: datapath.types.Collection, root_path: str = '') -> datapath
 * accept a Collection to treat as the root, and optional root path string to prepend
 * return a folded path dict, where each key is a dotted path to a leaf value, and values are
   the leaf values themselves.
-
-
 
 ### class `collection`
 
@@ -224,8 +211,8 @@ treated as a path; otherwise it will be treated as a key on the wrapped object
 wrap=True causes any returned list/dict object to be wrapped in a new collection
 instance by default. collection.get() can override this behavior
 
-
 #### method `collection.get()`
+
 ```
 collection.get(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -235,8 +222,8 @@ identical to get() for the wrapped root object
 if the path refers to a Collection object and wrap or self.wrap is True,
 then the result will be wrapped in a new collection instance
 
-
 #### method `collection.iterate()`
+
 ```
 collection.iterate(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -246,8 +233,8 @@ identical to iterate() for the wrapped root object
 if the iteration yields a Collection object and wrap or self.wrap is True,
 then the yielded result will be wrapped in a new collection instance
 
-
 #### method `collection.put()`
+
 ```
 collection.put(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -255,6 +242,7 @@ collection.put(root_obj: datapath.types.Collection, wrap: bool = False)
 identical to put() for the wrapped root object
 
 #### method `collection.delete()`
+
 ```
 collection.delete(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -262,6 +250,7 @@ collection.delete(root_obj: datapath.types.Collection, wrap: bool = False)
 identical to delete() for the wrapped root object
 
 #### method `collection.discard()`
+
 ```
 collection.discard(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -269,6 +258,7 @@ collection.discard(root_obj: datapath.types.Collection, wrap: bool = False)
 identical to discard() for the wrapped root object
 
 #### method `collection.fold()`
+
 ```
 collection.fold(root_obj: datapath.types.Collection, wrap: bool = False)
 ```
@@ -285,6 +275,7 @@ UnfoldProcessor()
 Base class used to enable custom processing of the data structure during unfold operations
 
 #### method `UnfoldProcessor.process_list()`
+
 ```
 UnfoldProcessor.process_list()
 ```
@@ -292,8 +283,8 @@ UnfoldProcessor.process_list()
 called on a completed list; return value is inserted into the resulting data structure
 instead of the original list
 
-
 #### method `UnfoldProcessor.process_dict()`
+
 ```
 UnfoldProcessor.process_dict()
 ```
@@ -302,24 +293,19 @@ called on a completed dict; return value is inserted into the resulting data str
 instead of the original dict
 
 
-
 ### exception `DatapathError`
 
 base datapath error
-
 
 ### exception `ValidationError`
 
 generic issue validating arguments
 
-
 ### exception `InvalidIterationError`
 
 disallowed or unsupported use of iteration (empty square brackets in a path)
 
-
 ### exception `PathLookupError`
 
 raised when an intermediate collection in a path is not found
-
 
