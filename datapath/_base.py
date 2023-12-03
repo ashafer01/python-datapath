@@ -34,17 +34,43 @@ _key_types = (int, str)
 _collection_types = (list, dict)
 
 
-def is_path(path: str) -> bool:
-    """validate the path string and return a bool, True if it's valid"""
+def _match_validate(path: str) -> re.Match:
+    match = _path_re.match(path)
+    if not match:
+        raise ValidationError('invalid path string')
+    return match
+
+
+def is_path(path: str, iterable: bool = True) -> bool:
+    """validate the path string and return a bool, True if it's valid
+
+    * all public methods that accept path strings validate them first
+    * set `iterable=False` if you do not want interable paths to be considered valid
+    """
     if path == '':
         return True
-    return bool(_path_re.match(path))
+    match = _path_re.match(path)
+    if iterable:
+        return bool(match)
+    else:
+        try:
+            _split_match(match)
+            return True
+        except ValidationError:
+            return False
 
 
-def validate_path(path: str) -> None:
-    """validate the path string and raise a ValidationError if it's invalid"""
-    if not is_path(path):
-        raise ValidationError('invalid path string')
+def validate_path(path: str, iterable: bool = True) -> None:
+    """validate the path string and raise a ValidationError if it's invalid
+
+    * all public methods that accept path strings validate them first
+    * set `iterable=False` if you do not want interable paths to be considered valid
+    """
+    if path == '':
+        return
+    match = _match_validate(path)
+    if not iterable:
+        _split_match(match)
 
 
 def _parse_range(range_part: str) -> range:
@@ -75,12 +101,14 @@ def _parse_range(range_part: str) -> range:
 
 def split(path: str, iterable: bool = False) -> SplitPath:
     """inverse of join() -- split the path string to it's component keys/indexes in order"""
-    if not path:
+    if path == '':
         return ()
+    match = _match_validate(path)
+    return _split_match(match, iterable)
+
+
+def _split_match(match: re.Match, iterable: bool) -> SplitPath:
     split_path: list[Key] = []
-    match = _path_re.match(path)
-    if not match:
-        raise ValidationError('invalid path string')
     for part in match.captures('part'):
         if part[0] == '[' and part[-1] == ']':
             index = part[1:-1]
