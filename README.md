@@ -14,6 +14,7 @@ _In development_: public API is not stable, support available solely at develope
   * `hello.world[0].name`
 * Example iterable paths:
   * `hello.world[].name`
+  * `hello.world[1:10:2].name`
   * `objects[].attributes.*` - iterates all values in each `"attributes"` dict
   * `objects[].attributes.*hello*` - same, but the key must contain the substring `hello`
 * Dictionary keys may be any string excluding the characters `*`, `[`, and `.`

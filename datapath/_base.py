@@ -23,7 +23,9 @@ from .types import (
 )
 
 _key_pattern = '(?P<part>[^[.]+)'
-_index_pattern = r'(?P<part>\[[0-9]*\])'
+_number_pattern = r'-?[0-9]'
+_range_parts_pattern = '(?::' + _number_pattern + '*){0,2}'
+_index_pattern = r'(?P<part>\[' + _number_pattern + r'*' + _range_parts_pattern + r'\])'
 _key_with_index_pattern = _key_pattern + _index_pattern + '?'
 _part_pattern = _key_with_index_pattern + '|' + _index_pattern
 _path_re = re.compile('^(?:' + _part_pattern + r')(?:\.' + _part_pattern + ')*$')
@@ -45,6 +47,32 @@ def validate_path(path: str) -> None:
         raise ValidationError('invalid path string')
 
 
+def _parse_range(range_part: str) -> range:
+    parts = range_part.split(':')
+    num_parts = len(parts)
+    if num_parts == 2:
+        start, stop = parts
+        step = ''
+    elif num_parts == 3:
+        start, stop, step = parts
+    else:
+        raise ValueError(f'bug: unhandled number of delimiters ({num_parts-1}) in range syntax')
+    if start:
+        start = int(start)
+    else:
+        start = 0
+    if stop:
+        stop = int(stop)
+    else:
+        stop = sys.maxsize
+    if step:
+        step = int(step)
+    else:
+        step = 1
+    return range(start, stop, step)
+
+
+
 def split(path: str, iterable: bool = False) -> SplitPath:
     """inverse of join() -- split the path string to it's component keys/indexes in order"""
     if not path:
@@ -56,17 +84,21 @@ def split(path: str, iterable: bool = False) -> SplitPath:
     for part in match.captures('part'):
         if part[0] == '[' and part[-1] == ']':
             index = part[1:-1]
-            if index:
+            if ':' in index:
+                if not iterable:
+                    raise InvalidIterationError('iterable range syntax is not allowed here')
+                split_path.append(_parse_range(index))
+            elif index:
                 split_path.append(int(index))
             elif iterable:
                 split_path.append(ITERATION_POINT)
             else:
-                raise InvalidIterationError('list index required; square brackets may not be empty')
+                raise InvalidIterationError('iterable empty square brackets is not allowed here')
         elif '*' in part:
             if iterable:
                 split_path.append(part)
             else:
-                raise InvalidIterationError('* is not allowed here')
+                raise InvalidIterationError('iterable *-key is not allowed here')
         else:
             split_path.append(part)
     return tuple(split_path)
@@ -188,7 +220,7 @@ def iterate(obj: Collection,
     * the path part just before an iteration point must refer to a list for `[]` and a dict
       for `*`-keys
     * each yielded value is a tuple (path, value); paths will be resolved with specific indexes
-      placed into all empty square brackets and specific keys replacing `*`-keys
+      placed into all empty square brackets / ranges, and specific keys replacing `*`-keys
     * `default` passes through to leaf `get()` calls
     * raises `PathLookupError` if a collection before an iteration point is not found, or an
       intermediate element leading to a collection is not found
@@ -200,6 +232,7 @@ def iterate(obj: Collection,
     * `test1[].test2`   # "test1" in a root dict must be a list, key "test2" from each dict entry will be yielded
     * `test1[].test2[]` # recursion works
     * `[][0]`           # works without dicts
+    * `test[1:10:2]     # python slicing is supported
     * `test1.*`         # "test1" in a root dict must be a dict, yield each key
     * `test1.test*`     # "test1" in a root dict must be a dict, yield each key that starts with "test"
     * `test1.*test*`    # "test1" in a root dict must be a dict, yield each key that contains "test"
@@ -218,14 +251,20 @@ def _iterate(obj: Collection,
         raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')
 
     star_index = _star_part_index(split_path)
+    range_index = _range_part_index(split_path)
     try:
         iter_index = split_path.index(ITERATION_POINT)
     except ValueError:
         iter_index = sys.maxsize
 
-    if star_index < iter_index:
-        # if a *-key comes before a [], then we need to operate on a dict
-        # and filter for wildcard matches
+    min_iter_point = min((iter_index, star_index, range_index))
+
+    if min_iter_point == sys.maxsize:
+        # no iteration points found, just need to get()
+        yield join(base_path + split_path), _get(obj, split_path, default)
+        return
+    elif min_iter_point == star_index:
+        # first iteration point is a *-key, we need a dict and need to filter for wildcard matches
         iter_index = star_index
         check = _check_dict_iter
         def iter_collection(collection):
@@ -233,15 +272,22 @@ def _iterate(obj: Collection,
                 if not _wildcard_match(split_path[star_index], key):
                     continue
                 yield key, value
-    elif iter_index < star_index:
-        # if a [] comes before a *-key, then we need to operate on a list
+    elif min_iter_point == range_index:
+        # first iteration point is a [x:y:z] range, we need a list and the original indicies
+        iter_index = range_index
+        check = _check_list_iter
+        def iter_collection(collection):
+            for index in split_path[range_index]:
+                try:
+                    yield index, collection[index]
+                except IndexError:
+                    break
+    elif min_iter_point == iter_index:
+        # first iteration point is a [] list iterator, just need to enumerate a list
         check = _check_list_iter
         iter_collection = enumerate
     else:
-        # star_index and iter_index can only be equal if there is neither a [] or a *-key,
-        # in which case we just need to get()
-        yield join(base_path + split_path), _get(obj, split_path, default)
-        return
+        raise RuntimeError('bug: unhandled min iter point')
 
     # find the collection referred to by the portion of the path before the first iteration point
     before_split_path = split_path[:iter_index]
@@ -272,6 +318,13 @@ def _iterate(obj: Collection,
 def _star_part_index(split_path: SplitPath) -> int:
     for index, part in enumerate(split_path):
         if isinstance(part, str) and '*' in part:
+            return index
+    return sys.maxsize
+
+
+def _range_part_index(split_path: SplitPath) -> int:
+    for index, part in enumerate(split_path):
+        if isinstance(part, range):
             return index
     return sys.maxsize
 
