@@ -123,10 +123,10 @@ class TestDatapath(unittest.TestCase):
                 datapath.split(path, iterable=False)
 
     def test_split_join(self):
-        for path in valid_paths:
+        for path in valid_paths + valid_iterable_paths:
             with self.subTest(msg=path):
                 try:
-                    self.assertEqual(datapath.join(datapath.split(path)), path)
+                    self.assertEqual(datapath.join(datapath.split(path, iterable=True)), path)
                 except datapath.ValidationError:
                     self.fail(f'path `{path}` was found invalid')
 

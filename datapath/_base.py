@@ -133,6 +133,24 @@ def _split_match(match: re.Match, iterable: bool) -> SplitPath:
     return tuple(split_path)
 
 
+def _format_range(range_obj: range) -> str:
+    start = range_obj.start
+    stop = range_obj.stop
+    step = range_obj.step
+    if range_obj.start == 0:
+        start = ''
+    if range_obj.stop == sys.maxsize:
+        stop = ''
+    if range_obj.step == 1:
+        step = ''
+    if not any((start, stop, step)):
+        return '[]'
+    slice_str = f'{start}:{stop}'
+    if step:
+        slice_str += f':{step}'
+    return f'[{slice_str}]'
+
+
 def join(split_path: Iterable[Key]) -> str:
     """inverse of split() -- combine an iterable of keys/indexes into a dotted-path format
 
@@ -160,8 +178,13 @@ def join(split_path: Iterable[Key]) -> str:
                 path = f'{path}[]'
             else:
                 path = '[]'
+        elif isinstance(part, range):
+            if path:
+                path = f'{path}{_format_range(part)}'
+            else:
+                path = _format_range(part)
         else:
-            raise ValidationError(f'index {i} is invalid, must be str/int, '
+            raise ValidationError(f'index {i} is invalid, must be str/int/range/ITERATION_POINT, '
                                   f'got {type(part).__name__}')
     return path
 
@@ -171,7 +194,7 @@ def _validate_key_collection_type(obj: Collection, key: Key) -> None:
     validate a collection object and key are valid and corresponding types
     raise a ValidationError if they are not
     """
-    if key is ITERATION_POINT:
+    if key is ITERATION_POINT or isinstance(key, range):
         raise TypeError('bug: iteration not supported here')
     if not isinstance(obj, _collection_types):
         raise TypeValidationError('object must be list/dict')
