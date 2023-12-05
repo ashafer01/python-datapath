@@ -13,13 +13,16 @@ from .types import (
     Collection,
     CollectionKey,
     NO_DEFAULT,
-    ITERATION_POINT,
     DatapathError,
     ValidationError,
     TypeValidationError,
     TypeMismatchValidationError,
     InvalidIterationError,
     PathLookupError,
+    _IterationPoint,
+    _ListIterationPoint,
+    _StarIterationPoint,
+    _RangeIterationPoint,
 )
 
 _key_pattern = '(?P<part>[^[.]+)'
@@ -74,32 +77,6 @@ def validate_path(path: str, iterable: bool = True) -> None:
         _split_match(match, iterable=False)
 
 
-def _parse_range(range_part: str) -> range:
-    parts = range_part.split(':')
-    num_parts = len(parts)
-    if num_parts == 2:
-        start, stop = parts
-        step = ''
-    elif num_parts == 3:
-        start, stop, step = parts
-    else:
-        raise ValueError(f'bug: unhandled number of delimiters ({num_parts-1}) in range syntax')
-    if start:
-        start = int(start)
-    else:
-        start = 0
-    if stop:
-        stop = int(stop)
-    else:
-        stop = sys.maxsize
-    if step:
-        step = int(step)
-    else:
-        step = 1
-    return range(start, stop, step)
-
-
-
 def split(path: str, iterable: bool = False) -> SplitPath:
     """inverse of join() -- split the path string to it's component keys/indexes in order"""
     if path == '':
@@ -114,41 +91,19 @@ def _split_match(match: re.Match, iterable: bool) -> SplitPath:
         if part[0] == '[' and part[-1] == ']':
             index = part[1:-1]
             if ':' in index:
-                if not iterable:
-                    raise InvalidIterationError('iterable range syntax is not allowed here')
-                split_path.append(_parse_range(index))
+                path_part = _RangeIterationPoint(part)
             elif index:
-                split_path.append(int(index))
-            elif iterable:
-                split_path.append(ITERATION_POINT)
+                path_part = int(index)
             else:
-                raise InvalidIterationError('iterable empty square brackets is not allowed here')
+                path_part = _ListIterationPoint(part)
         elif '*' in part:
-            if iterable:
-                split_path.append(part)
-            else:
-                raise InvalidIterationError('iterable *-key is not allowed here')
+            path_part = _StarIterationPoint(part)
         else:
-            split_path.append(part)
+            path_part = part
+        if not iterable and isinstance(path_part, _IterationPoint):
+            raise InvalidIterationError(f'iterable {path_part.name} {path_part} not allowed here')
+        split_path.append(path_part)
     return tuple(split_path)
-
-
-def _format_range(range_obj: range) -> str:
-    start = range_obj.start
-    stop = range_obj.stop
-    step = range_obj.step
-    if range_obj.start == 0:
-        start = ''
-    if range_obj.stop == sys.maxsize:
-        stop = ''
-    if range_obj.step == 1:
-        step = ''
-    if not any((start, stop, step)):
-        return '[]'
-    slice_str = f'{start}:{stop}'
-    if step:
-        slice_str += f':{step}'
-    return f'[{slice_str}]'
 
 
 def join(split_path: Iterable[Key]) -> str:
@@ -173,18 +128,10 @@ def join(split_path: Iterable[Key]) -> str:
                 path = f'{path}[{part}]'
             else:
                 path = f'[{part}]'
-        elif part is ITERATION_POINT:
-            if path:
-                path = f'{path}[]'
-            else:
-                path = '[]'
-        elif isinstance(part, range):
-            if path:
-                path = f'{path}{_format_range(part)}'
-            else:
-                path = _format_range(part)
+        elif isinstance(part, _IterationPoint):
+            path = part.append_path(path)
         else:
-            raise ValidationError(f'index {i} is invalid, must be str/int/range/ITERATION_POINT, '
+            raise ValidationError(f'index {i} is invalid, must be str/int or iteration point, '
                                   f'got {type(part).__name__}')
     return path
 
@@ -194,7 +141,7 @@ def _validate_key_collection_type(obj: Collection, key: Key) -> None:
     validate a collection object and key are valid and corresponding types
     raise a ValidationError if they are not
     """
-    if key is ITERATION_POINT or isinstance(key, range):
+    if isinstance(key, _IterationPoint):
         raise TypeError('bug: iteration not supported here')
     if not isinstance(obj, _collection_types):
         raise TypeValidationError('object must be list/dict')
@@ -302,44 +249,19 @@ def _iterate(obj: Collection,
     if not isinstance(obj, _collection_types):
         raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')
 
-    star_index = _star_part_index(split_path)
-    range_index = _range_part_index(split_path)
-    try:
-        iter_index = split_path.index(ITERATION_POINT)
-    except ValueError:
-        iter_index = sys.maxsize
+    # find first iteration point
+    iter_index = None
+    iter_point = None
+    for index, part in enumerate(split_path):
+        if isinstance(part, _IterationPoint):
+            iter_index = index
+            iter_point = part
+            break
 
-    min_iter_point = min((iter_index, star_index, range_index))
-
-    if min_iter_point == sys.maxsize:
+    if iter_index is None:
         # no iteration points found, just need to get()
         yield join(base_path + split_path), _get(obj, split_path, default)
         return
-    elif min_iter_point == star_index:
-        # first iteration point is a *-key, we need a dict and need to filter for wildcard matches
-        iter_index = star_index
-        check = _check_dict_iter
-        def iter_collection(collection):
-            for key, value in collection.items():
-                if not _wildcard_match(split_path[star_index], key):
-                    continue
-                yield key, value
-    elif min_iter_point == range_index:
-        # first iteration point is a [x:y:z] range, we need a list and the original indicies
-        iter_index = range_index
-        check = _check_list_iter
-        def iter_collection(collection):
-            for index in split_path[range_index]:
-                try:
-                    yield index, collection[index]
-                except IndexError:
-                    break
-    elif min_iter_point == iter_index:
-        # first iteration point is a [] list iterator, just need to enumerate a list
-        check = _check_list_iter
-        iter_collection = enumerate
-    else:
-        raise RuntimeError('bug: unhandled min iter point')
 
     # find the collection referred to by the portion of the path before the first iteration point
     before_split_path = split_path[:iter_index]
@@ -353,11 +275,11 @@ def _iterate(obj: Collection,
             path = '<root>'
         key = before_split_path[-1]
         raise PathLookupError(f'{path}: could not find collection at key/index {key!r} to iterate') from None
-    check(collection)
-    after_split_path = split_path[iter_index+1:]
 
     # iterate the collection
-    for key, element in iter_collection(collection):
+    iter_point.check(collection)
+    after_split_path = split_path[iter_index+1:]
+    for key, element in iter_point.iter(collection):
         key_split_path = base_path + before_split_path + (key,)
         if after_split_path:
             # if there is a path after the iteration point, element must be a Collection
@@ -365,38 +287,6 @@ def _iterate(obj: Collection,
         else:
             # if there is no path after, then this element is what we're after
             yield join(key_split_path), element
-
-
-def _star_part_index(split_path: SplitPath) -> int:
-    for index, part in enumerate(split_path):
-        if isinstance(part, str) and '*' in part:
-            return index
-    return sys.maxsize
-
-
-def _range_part_index(split_path: SplitPath) -> int:
-    for index, part in enumerate(split_path):
-        if isinstance(part, range):
-            return index
-    return sys.maxsize
-
-
-def _wildcard_match(star_part: str, key: str) -> bool:
-    if star_part == '*':
-        return True
-    substrings = map(re.escape, star_part.split('*'))
-    pattern = '^' + '.*?'.join(substrings) + '$'
-    return bool(re.match(pattern, key))
-
-
-def _check_dict_iter(collection: Collection):
-    if not isinstance(collection, dict):
-        raise InvalidIterationError('*-keys must be preceeded by a dict')
-
-
-def _check_list_iter(collection: Collection):
-    if not isinstance(collection, list):
-        raise InvalidIterationError('[] must be preceeded by a list')
 
 
 def put(obj: Collection, path: str, value: Any) -> None:
