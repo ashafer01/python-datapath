@@ -2,6 +2,8 @@
 
 set -xeo pipefail
 
+rm -rf build dist *.egg-info
+
 build_version='3.10'
 docker run -it --rm -v "$PWD:/repo" -w /repo "python:$build_version" '/repo/build.sh'
 

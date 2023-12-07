@@ -5,7 +5,7 @@ url = 'https://github.com/ashafer01/python-datapath'
 
 setup(
     name='python-datapath',
-    version='0.1.1',
+    version='0.1.2',
 
     author='Alex Shafer',
     author_email='ashafer@pm.me',

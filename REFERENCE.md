@@ -4,7 +4,6 @@
 
 ```
 Key = int | str
-SplitPath = tuple[Union[datapath.types.Key, datapath.types._IterationPoint, range], ...]
 Map = dict[str, Any]
 Collection = Union[list, datapath.types.Map]
 CollectionKey = tuple[list, int] | tuple[datapath.types.Map, str]
@@ -12,6 +11,7 @@ PartialList = list[tuple[int, Any]]
 PartialCollection = Union[datapath.types.PartialList, datapath.types.Map]
 PathDict = dict[str, Any]
 RootPathDict = dict[str, datapath.types.Collection]
+SplitPath = tuple[datapath.types._PathPart, ...]
 ```
 
 ## Public API
