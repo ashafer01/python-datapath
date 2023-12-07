@@ -15,11 +15,11 @@ from .types import (
     NO_DEFAULT,
     DatapathError,
     ValidationError,
-    TypeValidationError,
-    TypeMismatchValidationError,
     InvalidIterationError,
     PathLookupError,
-    _IterationPoint,
+    _PathPart,
+    _IndexPart,
+    _KeyPart,
     _ListIterationPoint,
     _StarIterationPoint,
     _RangeIterationPoint,
@@ -58,7 +58,7 @@ def is_path(path: str, iterable: bool = True) -> bool:
     if iterable:
         return True
     try:
-        _split_match(match, iterable=False)
+        _split_path_from_match(match, iterable=False)
         return True
     except ValidationError:
         return False
@@ -74,7 +74,7 @@ def validate_path(path: str, iterable: bool = True) -> None:
         return
     match = _match_validate(path)
     if not iterable:
-        _split_match(match, iterable=False)
+        _split_path_from_match(match, iterable=False)
 
 
 def split(path: str, iterable: bool = False) -> SplitPath:
@@ -82,25 +82,34 @@ def split(path: str, iterable: bool = False) -> SplitPath:
     if path == '':
         return ()
     match = _match_validate(path)
-    return _split_match(match, iterable)
+    return _split_path_from_match(match, iterable)
 
 
-def _split_match(match: re.Match, iterable: bool) -> SplitPath:
+def _split_path_from_match(match: re.Match, iterable: bool) -> SplitPath:
+    return _split_path_from_iterable(match.captures('part'), iterable)
+
+
+def _split_path_from_iterable(parts: Iterable[Key|_PathPart], iterable: bool) -> SplitPath:
     split_path: list[Key] = []
-    for part in match.captures('part'):
-        if part[0] == '[' and part[-1] == ']':
-            index = part[1:-1]
-            if ':' in index:
+    for part in parts:
+        if isinstance(part, _PathPart):
+            path_part = part
+        elif isinstance(part, int):
+            path_part = _IndexPart(f'[{part}]')
+        elif not isinstance(part, str):
+            raise ValidationError('path parts must be str or int')
+        elif part[0] == '[' and part[-1] == ']':
+            if ':' in part:
                 path_part = _RangeIterationPoint(part)
-            elif index:
-                path_part = int(index)
-            else:
+            elif part == '[]':
                 path_part = _ListIterationPoint(part)
+            else:
+                path_part = _IndexPart(part)
         elif '*' in part:
             path_part = _StarIterationPoint(part)
         else:
-            path_part = part
-        if not iterable and isinstance(path_part, _IterationPoint):
+            path_part = _KeyPart(part)
+        if not iterable and path_part.iterable:
             raise InvalidIterationError(f'iterable {path_part.name} {path_part} not allowed here')
         split_path.append(path_part)
     return tuple(split_path)
@@ -117,54 +126,22 @@ def join(split_path: Iterable[Key]) -> str:
     ```
     """
     path = ''
-    for i, part in enumerate(split_path):
-        if isinstance(part, str):
-            if path:
-                path = f'{path}.{part}'
-            else:
-                path = part
-        elif isinstance(part, int):
-            if path:
-                path = f'{path}[{part}]'
-            else:
-                path = f'[{part}]'
-        elif isinstance(part, _IterationPoint):
-            path = part.append_path(path)
-        else:
-            raise ValidationError(f'index {i} is invalid, must be str/int or iteration point, '
-                                  f'got {type(part).__name__}')
+    for i, part in enumerate(_split_path_from_iterable(split_path, True)):
+        path = part.append_path(path)
     return path
 
 
-def _validate_key_collection_type(obj: Collection, key: Key) -> None:
-    """
-    validate a collection object and key are valid and corresponding types
-    raise a ValidationError if they are not
-    """
-    if isinstance(key, _IterationPoint):
-        raise TypeError('bug: iteration not supported here')
-    if not isinstance(obj, _collection_types):
-        raise TypeValidationError('object must be list/dict')
-    if not isinstance(key, _key_types):
-        raise TypeValidationError('path parts must all be str or int')
-    if isinstance(key, int) and not isinstance(obj, list):
-        raise TypeMismatchValidationError(f'int key requires list, got {type(obj).__name__}')
-    if isinstance(key, str) and not isinstance(obj, dict):
-        raise TypeMismatchValidationError(f'str key requires dict, got {type(obj).__name__}')
-
-
-def _contextual_validate_key_collection_type(at_path: list[Key],
-                                             obj: Collection,
-                                             key: Key) -> None:
+def _check_collection_for_path_part(at_path: list[_PathPart], path_part: _PathPart, obj: Collection) -> None:
     """
     validate_key_collection_type(), except the path where the error occurred is prepended
     to the exception message
     """
-    at_path.append(key)
+    if path_part.iterable:
+        raise RuntimeError('bug: iteration not supported here')
     try:
-        _validate_key_collection_type(obj, key)
+        path_part.check(obj)
     except ValidationError as e:
-        raise type(e)(f'{join(at_path)}: {e}') from None
+        raise ValidationError(f'{join(at_path)}: {e}') from None
 
 
 def leaf(obj: Collection, path: str) -> CollectionKey:
@@ -174,16 +151,17 @@ def leaf(obj: Collection, path: str) -> CollectionKey:
 
 def _leaf(obj: Collection, split_path: SplitPath) -> CollectionKey:
     """leaf() on an already-split path"""
-    at_path: list[Key] = []
-    for key in split_path[:-1]:
-        _contextual_validate_key_collection_type(at_path, obj, key)
+    at_path: list[_PathPart] = []
+    for path_part in split_path[:-1]:
+        _check_collection_for_path_part(at_path, path_part, obj)
         try:
-            obj = obj[key]
+            obj = obj[path_part.key]
+            at_path.append(path_part)
         except LookupError:
-            raise PathLookupError(f'{join(at_path[:-1])}: could not find key/index {key!r}') from None
-    leaf_key = split_path[-1]
-    _contextual_validate_key_collection_type(at_path, obj, leaf_key)
-    return obj, leaf_key
+            raise PathLookupError(f'{join(at_path)}: could not find key/index {path_part.key!r}') from None
+    leaf_path_part = split_path[-1]
+    _check_collection_for_path_part(at_path, leaf_path_part, obj)
+    return obj, leaf_path_part.key
 
 
 def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
@@ -196,7 +174,7 @@ def get(obj: Collection, path: str, default: Any = NO_DEFAULT) -> Any:
     return _get(obj, split(path), default)
 
 
-def _get(obj: Collection, split_path: str, default: Any = NO_DEFAULT) -> Any:
+def _get(obj: Collection, split_path: SplitPath, default: Any = NO_DEFAULT) -> Any:
     """get() on an already-split path"""
     if not split_path:
         return obj
@@ -253,7 +231,7 @@ def _iterate(obj: Collection,
     iter_index = None
     iter_point = None
     for index, part in enumerate(split_path):
-        if isinstance(part, _IterationPoint):
+        if part.iterable:
             iter_index = index
             iter_point = part
             break

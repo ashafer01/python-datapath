@@ -27,5 +27,5 @@ _In development_: public API is not stable, support available solely at develope
   * An `InvalidIterationError` will be raised if these iterable path parts are passed to functions other than
     `iterate()`.
 * A `ValidationError` will be raised if the data structure does not match types of all path parts:
-  * Strings keys outside of square brackets MUST correspond to an object that subclasses `dict`
-  * Numerical indicies within square brackets MUST correspond to an object that subclasses `list`
+  * Strings keys (outside of square brackets) MUST correspond to an object that subclasses `dict`
+  * Numerical indicies (within square brackets) MUST correspond to an object that subclasses `list`

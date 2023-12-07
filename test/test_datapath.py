@@ -134,48 +134,6 @@ class TestDatapath(unittest.TestCase):
         with self.assertRaises(datapath.ValidationError):
             datapath.join([1.6])
 
-    def test_validate_key_collection_type_valid(self):
-        tests = (
-            ({}, ''),
-            ([], 0),
-        )
-        for i, (obj, key) in enumerate(tests):
-            with self.subTest(msg=f'index {i}'):
-                try:
-                    datapath._base._validate_key_collection_type(obj, key)
-                except datapath.ValidationError:
-                    self.fail(f'valid type combination was found invalid: obj {type(obj)} key {type(key)}')
-
-    def test_validate_key_collection_type_bad_object(self):
-        tests = (
-            (0, 0),
-            ('', ''),
-            (object(), ''),
-            (tuple(), 0),
-        )
-        for i, (obj, key) in enumerate(tests):
-            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeValidationError):
-                datapath._base._validate_key_collection_type(obj, key)
-
-    def test_validate_key_collection_bad_key(self):
-        tests = (
-            ({}, []),
-            ([], {}),
-            ([], 1.6),
-        )
-        for i, (obj, key) in enumerate(tests):
-            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeValidationError):
-                datapath._base._validate_key_collection_type(obj, key)
-
-    def test_validate_key_collection_type_mismatch(self):
-        tests = (
-            ({}, 0),
-            ([], ''),
-        )
-        for i, (obj, key) in enumerate(tests):
-            with self.subTest(msg=f'index {i}'), self.assertRaises(datapath._base.TypeMismatchValidationError):
-                datapath._base._validate_key_collection_type(obj, key)
-
     def test_get(self):
         tests = (
             ([0], '[0]', 0),
@@ -309,7 +267,7 @@ class TestDatapath(unittest.TestCase):
                 tuple(datapath.iterate(test_obj, ''))
 
     def test_iterate_wrong_iterated_path_not_a_list(self):
-        with self.assertRaises(datapath.InvalidIterationError):
+        with self.assertRaises(datapath.ValidationError):
             tuple(datapath.iterate({'a': 1}, '[]'))
 
     def test_iterate_missing_itermediate_path(self):
@@ -321,7 +279,7 @@ class TestDatapath(unittest.TestCase):
             tuple(datapath.iterate({'a': 1}, 'b'))
 
     def test_iterate_wrong_star_on_list(self):
-        with self.assertRaises(datapath.InvalidIterationError):
+        with self.assertRaises(datapath.ValidationError):
             tuple(datapath.iterate({'a': []}, 'a.*'))
 
     def test_iterate_default(self):

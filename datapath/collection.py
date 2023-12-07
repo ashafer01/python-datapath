@@ -53,7 +53,7 @@ class collection:
             return self.get(key)
         if isinstance(key, int) and isinstance(self.root, list):
             return self.root[key]
-        raise TypeError('unsupported key type')
+        raise ValueError('unsupported key type')
 
     def iterate(self, path: str, default: Any = NO_DEFAULT, wrap: bool = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
         """identical to iterate() for the wrapped root object

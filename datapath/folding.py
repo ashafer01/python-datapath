@@ -14,6 +14,9 @@ from .types import (
     PathDict,
     RootPathDict,
     ValidationError,
+    _IndexPart,
+    _KeyPart,
+    InvalidIterationError,
 )
 
 
@@ -93,22 +96,24 @@ def unfold_path_dict(paths: PathDict,
                 continue
             did_any = True
             parent = join(split_path[:-1])
-            key = split_path[-1]
-            if isinstance(key, int):
+            path_part = split_path[-1]
+            if isinstance(path_part, _IndexPart):
                 default_collection: PartialList = []
-            elif isinstance(key, str):
+            elif isinstance(path_part, _KeyPart):
                 default_collection: Map = {}
+            elif path_part.iterable:
+                raise InvalidIterationError('iteration not supported here')
             else:
                 raise TypeError('bug: unsupported path part type')
             collection: PartialCollection = path_dict.setdefault(parent, default_collection)
             value = path_dict.pop(path)
-            if isinstance(key, int) and isinstance(collection, list):
-                collection.append((key, value))
-            elif isinstance(key, str) and isinstance(collection, dict):
-                collection[key] = value
+            if isinstance(default_collection, list) and isinstance(collection, list):
+                collection.append((path_part.key, value))
+            elif isinstance(default_collection, dict) and isinstance(collection, dict):
+                collection[path_part.key] = value
             else:
                 raise ValidationError(f'unsupported/inconsistent types: parent {parent!r} '
-                                      f'has type {type(collection).__name__} key/index {key!r}')
+                                      f'has type {type(collection).__name__} for key/index {path_part.key!r}')
         if not did_any:
             path_length -= 1
             if complete_intermediates:

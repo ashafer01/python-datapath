@@ -14,11 +14,13 @@ PathDict = NewType('PathDict', dict[str, Any])
 RootPathDict = NewType('RootPathDict', dict[str, Collection])
 
 
-class _IterationPoint:
+class _PathPart:
     name: str = '<none>'
+    iterable: bool = False
 
     def __init__(self, path_part: str):
         self.path_part = path_part
+        self.key = None
 
     def __str__(self) -> str:
         return repr(self.path_part)
@@ -26,27 +28,73 @@ class _IterationPoint:
     def check(self, collection: Collection) -> None:
         raise NotImplementedError()
 
-    def iter(self, collection: Collection) -> Generator[tuple[Key, Any], None, None]:
-        raise NotImplementedError()
-
     def append_path(self, base_path: str) -> str:
         raise NotImplementedError()
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, _PathPart):
+            if other.key is None:
+                return NotImplemented
+            return self.key == other.key
+        else:
+            return self.key == other
 
-class _StarIterationPoint(_IterationPoint):
+
+class _IndexPart(_PathPart):
+    name: str = 'list index'
+
+    def __init__(self, path_part: str):
+        _PathPart.__init__(self, path_part)
+        index = path_part.strip('[]')
+        if index:
+            self.key = int(index)
+
+    def check(self, collection: Collection) -> None:
+        if not isinstance(collection, list):
+            raise ValidationError('[] must be preceeded by a list')
+
+    def append_path(self, base_path: str) -> str:
+        if base_path:
+            return f'{base_path}{self.path_part}'
+        else:
+            return self.path_part
+
+
+class _KeyPart(_PathPart):
+    name: str = 'key'
+
+    def __init__(self, path_part: str):
+        _PathPart.__init__(self, path_part)
+        self.key = path_part
+
+    def check(self, collection: Collection) -> None:
+        if not isinstance(collection, dict):
+            raise ValidationError('keys must be preceeded by a dict')
+
+    def append_path(self, base_path: str) -> str:
+        if base_path:
+            return f'{base_path}.{self.path_part}'
+        else:
+            return self.path_part
+
+
+class _IterationPoint(_PathPart):
+    iterable: bool = True
+
+    def iter(self, collection: Collection) -> Generator[tuple[Key, Any], None, None]:
+        raise NotImplementedError()
+
+
+class _StarIterationPoint(_KeyPart, _IterationPoint):
     name: str = '*-key'
 
     def __init__(self, path_part: str):
-        _IterationPoint.__init__(self, path_part)
+        _PathPart.__init__(self, path_part)
         if path_part == '*':
             self._re = None
         else:
             substrings = map(re.escape, path_part.split('*'))
             self._re = re.compile('^' + '.*?'.join(substrings) + '$')
-
-    def check(self, collection: Collection) -> None:
-        if not isinstance(collection, dict):
-            raise InvalidIterationError('*-keys must be preceeded by a dict')
 
     def _match(self, key: str) -> bool:
         if self._re:
@@ -60,37 +108,19 @@ class _StarIterationPoint(_IterationPoint):
                 continue
             yield key, value
 
-    def append_path(self, base_path: str) -> str:
-        if base_path:
-            return f'{base_path}.{self.path_part}'
-        else:
-            return self.path_part
 
-
-class _BaseListIterationPoint(_IterationPoint):
-    def check(self, collection: Collection) -> None:
-        if not isinstance(collection, list):
-            raise InvalidIterationError('[] must be preceeded by a list')
-
-    def append_path(self, base_path: str) -> str:
-        if base_path:
-            return f'{base_path}{self.path_part}'
-        else:
-            return self.path_part
-
-
-class _ListIterationPoint(_BaseListIterationPoint):
+class _ListIterationPoint(_IndexPart, _IterationPoint):
     name: str = 'empty square brackets'
 
     def iter(self, collection: Collection) -> Generator[tuple[Key, Any], None, None]:
         yield from enumerate(collection)
 
 
-class _RangeIterationPoint(_BaseListIterationPoint):
+class _RangeIterationPoint(_IndexPart, _IterationPoint):
     name: str = 'slice syntax'
 
     def __init__(self, path_part: str):
-        _IterationPoint.__init__(self, path_part)
+        _PathPart.__init__(self, path_part)
         self._range = self._parse_slice(path_part)
 
     @staticmethod
@@ -126,7 +156,7 @@ class _RangeIterationPoint(_BaseListIterationPoint):
                 break
 
 
-SplitPath = NewType('SplitPath', tuple[Key|_IterationPoint, ...])
+SplitPath = NewType('SplitPath', tuple[_PathPart, ...])
 
 
 class _NoDefault:
@@ -143,14 +173,6 @@ class DatapathError(Exception):
 
 class ValidationError(DatapathError):
     """generic issue validating arguments"""
-
-
-class TypeValidationError(ValidationError):
-    """a type was not valid"""
-
-
-class TypeMismatchValidationError(ValidationError):
-    """two codependent types did not match"""
 
 
 class InvalidIterationError(ValidationError):
