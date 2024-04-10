@@ -1,3 +1,4 @@
+import doctest
 import unittest
 
 import datapath
@@ -40,6 +41,11 @@ invalid_paths = (
     '[1[2]',
     '[,%$^%^!@#$%[1]',
 )
+
+
+def load_tests(loader, tests, ignore):
+    tests.addTests(doctest.DocTestSuite(datapath._base))
+    return tests
 
 
 class TestDatapath(unittest.TestCase):

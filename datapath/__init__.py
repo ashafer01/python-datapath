@@ -19,6 +19,7 @@ from .folding import (
     complete_collection,
     UnfoldProcessor,
 )
+from .format import format, format_iterate
 from .types import (
     DatapathError,
     ValidationError,
@@ -28,7 +29,9 @@ from .types import (
 
 __all__ = [
     'get',
+    'format',
     'iterate',
+    'format_iterate',
     'put',
     'delete',
     'discard',

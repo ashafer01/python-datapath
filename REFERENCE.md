@@ -30,10 +30,19 @@ obtain the value at the path
 * if default is passed, return it if the leaf value was not found
 * if default is not passed and the leaf value is not found, propagate the LookupError
 
+### function `format()`
+
+```
+format(obj: datapath.types.Collection, format_string: str) -> str
+```
+
+Given a standard Python format string with {} notation, interpret the identifiers
+as a datapath within `obj`, and apply standard formatting language to the result.
+
 ### function `iterate()`
 
 ```
-iterate(obj: datapath.types.Collection, path: str, default: Any = NO_DEFAULT) -> Generator[tuple[str, Any], NoneType, NoneType]
+iterate(obj: datapath.types.Collection, path: str, default: Any = NO_DEFAULT) -> Generator[datapath._base.iterate_result[str, Any], NoneType, NoneType]
 ```
 
 yield entries from a collection using an iterable path -- that is, one containing one or more
@@ -59,6 +68,65 @@ Examples:
 * `test1.test*`     # "test1" in a root dict must be a dict, yield each key that starts with "test"
 * `test1.*test*`    # "test1" in a root dict must be a dict, yield each key that contains "test"
 * `test1[].*`       # combining dict and list iteration works
+
+### function `format_iterate()`
+
+```
+format_iterate(obj: datapath.types.Collection, format_string: str, default: Any = NO_DEFAULT, iter_func: Callable = <class 'zip'>) -> Generator[str, NoneType, NoneType]
+```
+
+Given a standard Python format string with {} notation, interpret the identifiers as iterable datapaths within `obj`.
+One value will be consumed from each iterable path and formatted using the standard language.
+
+`default` is passed through to all `iterate()` calls, which in turn passes it through to the leaf `get()` calls.
+There is no way to use a different default value for different iterable datapaths in replacement fields.
+
+By default, the values from the iterators will be obtained with the
+[`zip()` builtin](https://docs.python.org/3/library/functions.html#zip) with `strict=False`, meaning if the different
+iterable format strings produce a differnt number of results, iteration will stop when the shortest one stops, and
+the values will all correspond to the same index from each `iterate()` result.
+
+Example:
+
+```
+>>> test_obj = [{'a': 1, 'b': 2}, {'a': 3, 'b': 4}, {'a': 5, 'b': 6}]
+>>> for text in format_iterate(test_obj, 'a {[].a} b {[].b}'):
+...     print(text)
+...
+a 1 b 2
+a 3 b 4
+a 5 b 6
+
+```
+
+If different behavior is desired, a different function can be passed:
+
+`iter_func` must have approximately the same basic signature as `builtins.zip()`,
+[`itertools.product()`](https://docs.python.org/3/library/itertools.html#itertools.product),
+and [`itertools.zip_longest()`](https://docs.python.org/3/library/itertools.html#itertools.zip_longest).
+
+More specifically, it must accept an arbitrary number of Iterables (specifically the Generator
+returned by `datapath.iterate()`), and yield a Sequence with a value from each one in order when the return
+value is iterated.
+
+You can supply extra keyword arguments to any function with this signature by utilizing
+[`functools.partial()`](https://docs.python.org/3/library/functools.html#functools.partial). Passing positional
+arguments to a partial will probably not work as expected, and is not recommended.
+
+Example with a partial and `itertools.zip_longest()`:
+
+```
+>>> import functools, itertools
+>>> test_obj = {'a': list('123'), 'b': list('4567')}
+>>> for text in format_iterate(test_obj, 'a {a[]} b {b[]}',
+...                            iter_func=functools.partial(itertools.zip_longest, fillvalue='X')):
+...     print(text)
+a 1 b 4
+a 2 b 5
+a 3 b 6
+a X b 7
+
+```
 
 ### function `put()`
 
@@ -144,6 +212,7 @@ Example:
 ```
 >>> join(['a', 'b', 5])
 'a.b[5]'
+
 ```
 
 ### function `leaf()`

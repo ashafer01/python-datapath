@@ -123,6 +123,7 @@ def join(split_path: Iterable[Key]) -> str:
     ```
     >>> join(['a', 'b', 5])
     'a.b[5]'
+
     ```
     """
     path = ''
@@ -187,9 +188,13 @@ def _get(obj: Collection, split_path: SplitPath, default: Any = NO_DEFAULT) -> A
         return default
 
 
+class iterate_result(tuple):
+    pass
+
+
 def iterate(obj: Collection,
             path: str,
-            default: Any = NO_DEFAULT) -> Generator[tuple[str, Any], None, None]:
+            default: Any = NO_DEFAULT) -> Generator[iterate_result[str, Any], None, None]:
     """
     yield entries from a collection using an iterable path -- that is, one containing one or more
     sets of empty square brackets (`[]`) or a key with a `*` (`*`/`wild*cards*`/etc.)
@@ -222,7 +227,7 @@ def iterate(obj: Collection,
 def _iterate(obj: Collection,
              split_path: SplitPath,
              base_path: SplitPath,
-             default: Any) -> Generator[tuple[str, Any], None, None]:
+             default: Any) -> Generator[iterate_result[str, Any], None, None]:
     """recursive core of iterate()"""
     if not isinstance(obj, _collection_types):
         raise ValidationError(f'{join(base_path + split_path)}: must be list/dict')
@@ -238,7 +243,7 @@ def _iterate(obj: Collection,
 
     if iter_index is None:
         # no iteration points found, just need to get()
-        yield join(base_path + split_path), _get(obj, split_path, default)
+        yield iterate_result((join(base_path + split_path), _get(obj, split_path, default)))
         return
 
     # find the collection referred to by the portion of the path before the first iteration point
@@ -264,7 +269,7 @@ def _iterate(obj: Collection,
             yield from _iterate(element, after_split_path, key_split_path, default)
         else:
             # if there is no path after, then this element is what we're after
-            yield join(key_split_path), element
+            yield iterate_result((join(key_split_path), element))
 
 
 def put(obj: Collection, path: str, value: Any) -> None:
