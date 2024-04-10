@@ -3,7 +3,8 @@
 A python package for working with dotted and square-bracketed paths on a recursive data structure made of dicts and
 lists, such as are returned by most JSON and YAML decoders, and other common data interchange formats.
 
-_In development_: public API is not stable, support available solely at developer discretion
+> [!WARNING]
+> _In development_: public API is not stable, support available solely at developer discretion
 
 * [Public API Reference Document](REFERENCE.md)
 * Requires Python 3.10+
