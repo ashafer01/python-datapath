@@ -16,7 +16,8 @@ SplitPath = tuple[datapath.types._PathPart, ...]
 
 ## Public API
 
-The API semantics are optimized for use with `import datapath`, without any `from` clause
+> [!TIP]
+> The API semantics are optimized for use with `import datapath`, without any `from` clause
 
 ### function `get()`
 

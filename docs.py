@@ -31,7 +31,8 @@ def make_docs():
         f.write('```\n\n')
 
         f.write('## Public API\n\n')
-        f.write('The API semantics are optimized for use with `import datapath`, without any `from` clause\n\n')
+        f.write('> [!TIP]\n')
+        f.write('> The API semantics are optimized for use with `import datapath`, without any `from` clause\n\n')
         for obj_name in datapath.__all__:
             obj = getattr(datapath, obj_name)
             obj_doc = getattr(obj, '__doc__', None)
