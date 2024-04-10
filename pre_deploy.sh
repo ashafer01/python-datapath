@@ -2,7 +2,7 @@
 
 set -xeo pipefail
 
-rm -rf build dist *.egg-info
+rm -rf build dist ./*.egg-info
 
 build_version='3.10'
 docker pull "python:$build_version"

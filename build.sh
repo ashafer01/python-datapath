@@ -15,8 +15,6 @@ python3 -m unittest -v
 pylint -E datapath setup.py docs.py
 python3 docs.py
 
-rm -rf dist/*
-
 python3 setup.py sdist
 python3 setup.py bdist_wheel
 
